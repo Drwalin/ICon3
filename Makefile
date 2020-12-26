@@ -1,17 +1,23 @@
 
 CFLAGS = -Ofast -s -m64 -pipe
 CMPFLAGS = -IC:\Programs\mingw-w64\include -Isrc
-LDFLAGS = -lwinmm -lWs2_32 -lMswsock -lAdvApi32 -lmsvcrt -lpthread
+LDFLAGS = -LC:\Programs\mingw-w64\lib
+LDFLAGS += -lwinmm -lWs2_32 -lMswsock -lAdvApi32 -lmsvcrt -lpthread -lcrypto -lssl
 CC = g++
 
-objects = bin/ASIO.obj
+objects = bin/ASIO.obj bin/TCP.obj bin/UDP.obj
 
 all: $(objects) $(exes) udp tcp
 udp: UDPServer.exe UDPClient.exe
 tcp: TCPServer.exe TCPClient.exe
-pure: PureUDPServer.exe PureUDPClient.exe
+pureudp: PureUDPServer.exe PureUDPClient.exe
+puressl: PureSSLServer.exe PureSSLClient.exe
+puressl2: PureSSLServer2.exe PureSSLClient2.exe
 
 %.exe: bin/%.obj $(objects)
+	$(CC) $^ -o $@ $(CFLAGS) $(LDFLAGS) $(CMPFLAGS)
+
+Pure%.exe: tests/Pure%.cpp
 	$(CC) $^ -o $@ $(CFLAGS) $(LDFLAGS) $(CMPFLAGS)
 
 %.exe: tests/%.cpp $(objects)
@@ -22,6 +28,6 @@ bin/%.obj: src/%.cpp
 
 .PHONY: clean
 clean:
-	del *.exe
-	del bin\*.obj
+	rm *.exe -f
+	rm bin/*.obj -f
 
