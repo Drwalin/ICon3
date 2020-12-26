@@ -42,6 +42,10 @@ namespace boost {
 
 #define DEBUG(x) {fprintf(stderr,"\n %s : %s:%i",x,__FILE__,__LINE__); fflush(stderr);}
 
+class BasicSocket {
+public:
+};
+
 class Endpoint {
 public:
 	

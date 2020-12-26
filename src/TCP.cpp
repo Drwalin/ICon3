@@ -183,8 +183,6 @@ namespace TCP {
 	
 	
 	
-	
-	
 	bool Server::Valid() const {
 		return acceptor != NULL;
 	}

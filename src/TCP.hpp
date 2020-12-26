@@ -43,6 +43,12 @@ namespace TCP {
 	
 	
 	
+	class Connection {
+		
+	};
+	
+	
+	
 	class Server {
 	public:
 		
@@ -61,5 +67,5 @@ namespace TCP {
 	};
 };
 
-#endif // ASIO_HPP
+#endif
 

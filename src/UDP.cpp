@@ -28,17 +28,21 @@ namespace UDP {
 	Endpoint::Endpoint() {
 		ptr = new boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), 0);
 	}
+	
 	Endpoint::Endpoint(const GlobalEndpoint& endpoint) {
 		ptr = new boost::asio::ip::udp::endpoint(endpoint.UdpEndpoint());
 	}
+	
 	Endpoint::Endpoint(const Endpoint& endpoint) {
 		ptr = new boost::asio::ip::udp::endpoint(*endpoint.ptr);
 	}
+	
 	Endpoint::Endpoint(uint16_t port) {
 		ptr = new boost::asio::ip::udp::endpoint(
 				boost::asio::ip::udp::v4(),
 				port);
 	}
+	
 	Endpoint::~Endpoint() {
 		delete ptr;
 	}

@@ -2,6 +2,8 @@
 #ifndef UDP_HPP
 #define UDP_HPP
 
+#include "ASIO.hpp"
+
 #include <string>
 #include <vector>
 #include <functional>
@@ -11,24 +13,8 @@
 #include <unordered_map>
 #include <queue>
 
-#include <cstring>
-#include <ctime>
-#include <cstdio>
-#include <cstdlib>
-
-#include "ASIO.hpp"
-
-#ifdef ASIO_CPP
-
-#include <boost/asio/io_service.hpp>
-#include <boost/asio/buffer.hpp>
-#include <boost/asio/ip/udp.hpp>
-
-#else
-
-#endif
-
 namespace UDP {
+	
 	const uint32_t udpMessageSizeLimit = 1280;
 	
 	using GlobalEndpoint = Endpoint;
@@ -123,5 +109,6 @@ namespace UDP {
 		uint64_t id;
 	};
 };
+
 #endif
 
