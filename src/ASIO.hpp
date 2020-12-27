@@ -15,6 +15,7 @@
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ip/udp.hpp>
+#include <boost/asio/ssl.hpp>
 
 extern "C" boost::asio::io_service *io_service;
 boost::asio::io_service& IoService();
@@ -23,6 +24,8 @@ boost::asio::io_service& IoService();
 
 namespace boost {
 	namespace asio {
+		class io_context;
+		class io_service;
 		namespace ip {
 			namespace tcp {
 				class socket;
@@ -34,9 +37,13 @@ namespace boost {
 				class endpoint;
 			};
 		};
+		namespace ssl {
+			template<typename T>
+			class stream;
+			class context;
+		};
 	};
 };
-
 
 #endif
 

@@ -20,7 +20,7 @@
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/ip/tcp.hpp>
 
-namespace TCP {
+namespace tcp {
 	
 	Socket::Socket() {
 		sock = NULL;
@@ -142,6 +142,7 @@ namespace TCP {
 	float Socket::GetMessageCompletition(uint64_t&recvd, uint64_t& required) {
 		FetchData();
 		recvd = buffer.size();
+		required = 0;
 		NumberBuffer n;
 		uint64_t c = n.SetBytes(&buffer.front(), buffer.size());
 		if(c == 0)
@@ -168,7 +169,7 @@ namespace TCP {
 			uint64_t readed = TryReadMessageFromBuffer(message, buffer);
 			if(readed > 0) {
 				buffer.erase(buffer.begin(), buffer.begin()+readed);
-				if(buffer.capacity() > 1024*1024) {
+				if(buffer.capacity() > 16*1024) {
 					buffer.shrink_to_fit();
 				}
 			}
@@ -211,7 +212,7 @@ namespace TCP {
 	}
 	
 	bool Server::Listen(Socket* socket) {
-		if(Valid()) {
+		if(Valid() && socket) {
 			socket->CreateEmpty();
 			boost::system::error_code err;
 			acceptor->accept(*(socket->sock), err);

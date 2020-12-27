@@ -7,7 +7,7 @@
 
 #include "ASIO.hpp"
 
-namespace TCP {
+namespace tcp {
 	
 	class Socket {
 	public:
@@ -26,6 +26,7 @@ namespace TCP {
 		
 		bool Send(const std::vector<uint8_t>& buffer);
 		bool Send(const Message& msg);
+		
 		void FetchData();
 		
 		bool HasMessage() const;
@@ -37,14 +38,9 @@ namespace TCP {
 		friend class Server;
 		
 	private:
+		
 		boost::asio::ip::tcp::socket* sock;
 		std::vector<uint8_t> buffer;
-	};
-	
-	
-	
-	class Connection {
-		
 	};
 	
 	
@@ -63,6 +59,7 @@ namespace TCP {
 		bool Valid() const;
 		
 	private:
+		
 		boost::asio::ip::tcp::acceptor* acceptor;
 	};
 };

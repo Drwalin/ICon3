@@ -13,7 +13,7 @@
 #include <unordered_map>
 #include <queue>
 
-namespace UDP {
+namespace udp {
 	
 	const uint32_t udpMessageSizeLimit = 1280;
 	

@@ -23,7 +23,7 @@
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/ip/udp.hpp>
 
-namespace UDP {
+namespace udp {
 	
 	Endpoint::Endpoint() {
 		ptr = new boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), 0);

@@ -8,7 +8,7 @@
 #include <windows.h>
 #include <conio.h>
 
-#include <TCP.hpp>
+#include <SSL.hpp>
 
 bool CheckChecksum(const std::vector<uint8_t>& buffer) {
 	uint8_t checksum=0;
@@ -21,9 +21,12 @@ bool CheckChecksum(const std::vector<uint8_t>& buffer) {
 int main() {
 	printf("\n Running!\n");
 	
-	tcp::Socket socket;
-	tcp::Server server;
-	server.Open(Endpoint("", 27000));
+	ssl::Socket socket;
+	ssl::Server server;
+	server.Open(Endpoint("", 27000),
+			"cert/user.crt",
+			"cert/user.key",
+			"cert/dh2048.pem");
 	if(server.Listen(&socket)) {
 		socket.Send(Message("Hello from server 1 !","fh4789w3784"));
 		socket.Send(Message("Message from server 2 !","4ufr83u48f"));
@@ -32,29 +35,29 @@ int main() {
 		
 		Message msg;
 		
-		if(socket.PopMessage(msg, 10000))
+		if(socket.PopMessage(msg, 1000))
 			printf("\n received: %s", msg.title.c_str());
 		else
 			printf("\n timedout");
 		
-		if(socket.PopMessage(msg, 10000))
+		if(socket.PopMessage(msg, 1000))
 			printf("\n received: %s", msg.title.c_str());
 		else
 			printf("\n timedout");
 		
-		if(socket.PopMessage(msg, 10000))
+		if(socket.PopMessage(msg, 1000))
 			printf("\n received: %s", msg.title.c_str());
 		else
 			printf("\n timedout");
-	
-		if(socket.PopMessage(msg, 10000))
+		
+		if(socket.PopMessage(msg, 1000))
 			printf("\n received: %s", msg.title.c_str());
 		else
 			printf("\n timedout");
 		
 		socket.Send(Message("Message from server 5 !"));
 		
-		if(socket.PopMessage(msg, 10000))
+		if(socket.PopMessage(msg, 1000))
 			printf("\n received: %s", msg.title.c_str());
 		else
 			printf("\n timedout");
@@ -62,6 +65,7 @@ int main() {
 		socket.Send(Message("Message from server 6 !"));
 		
 		while(true) {
+			socket.Poll();
 			uint64_t recvd=0, req=0;
 			socket.GetMessageCompletition(recvd, req);
 			if(recvd > 0)
@@ -69,30 +73,24 @@ int main() {
 		}
 		
 		int beg = clock();
-		int __beg = clock();
 		while(true) {
-			socket.FetchData();
-			if(socket.HasMessage() || clock()-__beg > 3000) {
-				uint64_t recvd=0, req=0;
-				printf("\n received: %2.2f%% = ",
-						socket.GetMessageCompletition(recvd, req));
-				printf(" %llu / %llu bytes", recvd, req);
-				printf("   speed = %.2f MiB/s", (float)(recvd)*1000.0f/1024.0f/1024.0f/(float)(clock()-beg));
-				__beg = clock();
-			}
-			if(socket.HasMessage()) {
-				Message msg;
-				if(socket.PopMessage(msg, 3000)) {
-					printf("\n received: %s", msg.title.c_str());
-					printf("\n checksum: %s", CheckChecksum(msg.data)?"true":"false");
-					break;
-				}
+			uint64_t recvd=0, req=0;
+			printf("\n received: %2.2f%% = ",
+					socket.GetMessageCompletition(recvd, req));
+			printf(" %llu / %llu bytes", recvd, req);
+			printf("   speed = %.2f MiB/s", (float)(recvd)*1000.0f/1024.0f/1024.0f/(float)(clock()-beg));
+			if(socket.PopMessage(msg, 3000)) {
+				printf("\n   speed = %.2f MiB/s", (float)(msg.title.size()+msg.data.size())*1000.0f/1024.0f/1024.0f/(float)(clock()-beg));
+				printf("\n received: %s", msg.title.c_str());
+				printf("\n checksum: %s", CheckChecksum(msg.data)?"true":"false");
+				break;
 			}
 		}
 		socket.Close();
 	} else {
 		printf("\n cannot connect");
 	}
+	printf("\n Done!");
 	server.Close();
 	
 	getch();

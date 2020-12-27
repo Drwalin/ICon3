@@ -16,16 +16,19 @@
 
 using boost::asio::ip::tcp;
 
+boost::asio::io_service ioService;
+
 class session : public std::enable_shared_from_this<session> {
 public:
+	session(boost::asio::io_context& io_context, boost::asio::ssl::context& context) : socket_(io_context, context) {}
 	session(boost::asio::ssl::stream<tcp::socket> socket) : socket_(std::move(socket)) {
 	}
-
+	
 	void start() {
 		do_handshake();
 	}
-
-private:
+	
+public:
 	void do_handshake() {
 		auto self(shared_from_this());
 		socket_.async_handshake(boost::asio::ssl::stream_base::server, [this, self](const boost::system::error_code& error) {
@@ -34,7 +37,7 @@ private:
 			}
 		});
 	}
-
+	
 	void do_read() {
 		auto self(shared_from_this());
 		socket_.async_read_some(boost::asio::buffer(data_), [this, self](const boost::system::error_code& ec, std::size_t length) {
@@ -43,7 +46,7 @@ private:
 			}
 		});
 	}
-
+	
 	void do_write(std::size_t length) {
 		auto self(shared_from_this());
 		boost::asio::async_write(socket_, boost::asio::buffer(data_, length), [this, self](const boost::system::error_code& ec, std::size_t /*length*/) {
@@ -52,7 +55,7 @@ private:
 			}
 		});
 	}
-
+	
 	boost::asio::ssl::stream<tcp::socket> socket_;
 	char data_[1024];
 };
@@ -68,47 +71,58 @@ public:
 		context_.use_certificate_chain_file("cert/user.crt");
 		context_.use_private_key_file("cert/user.key", boost::asio::ssl::context::pem);
 		context_.use_tmp_dh_file("cert/dh2048.pem");
-
-		do_accept();
+		
+		do_accept(io_context);
 	}
-
+	
 private:
 	std::string get_password() const {
 		return "test";
 	}
-
-	void do_accept() {
+	
+	void do_accept(boost::asio::io_context& io_context) {
+		std::shared_ptr<session> ses = std::make_shared<session>(io_context, context_);
+		boost::system::error_code err;
+		acceptor_.accept(ses->socket_.lowest_layer(), err);
+		if(err) {
+			printf("\n Error: %s", err.message());
+		}
+		ses->start();
+		
+		/*
 		acceptor_.async_accept([this](const boost::system::error_code& error, tcp::socket socket) {
 			if(!error) {
 				std::make_shared<session>(
 				boost::asio::ssl::stream<tcp::socket>(
 				std::move(socket), context_))->start();
 			}
-
 			do_accept();
 		});
+		*/
 	}
-
+	
 	tcp::acceptor acceptor_;
 	boost::asio::ssl::context context_;
 };
 
 int main(int argc, char* argv[]) {
+	std::cout << "\n started";
 	try {
 		if(argc != 2) {
 			std::cerr << "Usage: server <port>\n";
 			return 1;
 		}
-
+		
 		boost::asio::io_context io_context;
-
+		
 		using namespace std; // For atoi.
 		server s(io_context, atoi(argv[1]));
-
+		
+		io_context.run();
 		io_context.run();
 	} catch(std::exception& e) {
 		std::cerr << "Exception: " << e.what() << "\n";
 	}
-
+	
 	return 0;
 }

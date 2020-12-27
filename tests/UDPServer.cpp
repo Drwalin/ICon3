@@ -14,7 +14,7 @@ extern "C" const char * str;
 int main() {
 	printf("\n Running!\n");
 	
-	UDP::Socket socket, ss;
+	udp::Socket socket, ss;
 	socket.Open(Endpoint("", 27000));
 	ss.Open(Endpoint());
 	

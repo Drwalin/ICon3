@@ -7,7 +7,7 @@
 #include <windows.h>
 #include <conio.h>
 
-#include <TCP.hpp>
+#include <SSL.hpp>
 
 uint16_t Random(uint64_t& gen, uint64_t i) {
 	gen = (gen<<4) ^ (gen>>7) ^ i;
@@ -37,6 +37,7 @@ std::vector<uint8_t> RandomData(uint64_t c) {
 }
 
 int main() {
+	
 	srand(time(NULL));
 	
 	std::vector<uint8_t> uberMessageBuffer;
@@ -47,40 +48,40 @@ int main() {
 	
 	printf("\n uber message created in %.2fs!", (float)(clock())*0.001f);
 	
-	tcp::Socket socket;
+	ssl::Socket socket;
 	Endpoint endpoint("127.0.0.1:27000");
-	if(socket.Connect(endpoint)) {
+	if(socket.Connect(endpoint, "cert/rootca.crt")) {
 		socket.Send(Message("Hello from client 1 !"));
 		socket.Send(Message("Message from client 2 !"));
 		socket.Send(Message("Message from client 3 !"));
 		
 		Message msg;
 	
-		if(socket.PopMessage(msg, 10000))
+		if(socket.PopMessage(msg, 1000))
 			printf("\n received: %s", msg.title.c_str());
 		else
 			printf("\n timedout");
 		
-		if(socket.PopMessage(msg, 10000))
+		if(socket.PopMessage(msg, 1000))
 			printf("\n received: %s", msg.title.c_str());
 		else
 			printf("\n timedout");
 		
-		if(socket.PopMessage(msg, 10000))
+		if(socket.PopMessage(msg, 1000))
 			printf("\n received: %s", msg.title.c_str());
 		else
 			printf("\n timedout");
 		
 		socket.Send(Message("Message from client 4 !"));
 		
-		if(socket.PopMessage(msg, 10000))
+		if(socket.PopMessage(msg, 1000))
 			printf("\n received: %s", msg.title.c_str());
 		else
 			printf("\n timedout");
 		
 		socket.Send(Message("Message from client 5 !"));
 		
-		if(socket.PopMessage(msg, 10000))
+		if(socket.PopMessage(msg, 1000))
 			printf("\n received: %s", msg.title.c_str());
 		else
 			printf("\n timedout");
@@ -107,7 +108,8 @@ int main() {
 	} else {
 		printf("\n cannot connect");
 	}
-
+	
+	printf("\n Done!");
 	getch();
 	return 0;
 }

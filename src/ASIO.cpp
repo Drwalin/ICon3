@@ -6,7 +6,6 @@
 #include "ASIO.hpp"
 
 boost::asio::io_service *io_service = NULL;
-
 boost::asio::io_service& IoService() {
 	if(io_service == NULL) {
 		io_service = new boost::asio::io_service;
@@ -63,15 +62,14 @@ boost::asio::ip::udp::endpoint Endpoint::UdpEndpoint() const {
 }
 
 boost::asio::ip::tcp::endpoint Endpoint::TcpEndpoint() const {
-	if(*this) {
+	if(*this)
 		return boost::asio::ip::tcp::endpoint(
 				boost::asio::ip::address::from_string(ip.c_str()),
 				port);
-	} else {
+	else
 		return boost::asio::ip::tcp::endpoint(
 				boost::asio::ip::tcp::v4(),
 				port);
-	}
 }
 
 
@@ -283,6 +281,4 @@ uint64_t TryReadMessageFromBuffer(Message& msg,
 		std::vector<uint8_t>& buffer) {
 	return TryReadMessageFromBuffer(msg, &buffer.front(), buffer.size());
 }
-
-
 

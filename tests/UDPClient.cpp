@@ -10,8 +10,7 @@
 
 int main() {
 	
-	try {
-	UDP::Socket socket;
+	udp::Socket socket;
 	socket.Open(Endpoint());
 	Endpoint endpoint("127.0.0.1:27000");
 	Message msg;
@@ -29,9 +28,7 @@ int main() {
 		printf("\n received: %s", msg.title.c_str());
 	else
 		printf("\n timedout");
-	} catch (...) {
-		printf("\n Exception");
-	}
+	
 	return 0;
 }
 

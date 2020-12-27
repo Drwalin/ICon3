@@ -5,14 +5,14 @@ LDFLAGS = -LC:\Programs\mingw-w64\lib
 LDFLAGS += -lwinmm -lWs2_32 -lMswsock -lAdvApi32 -lmsvcrt -lpthread -lcrypto -lssl
 CC = g++
 
-objects = bin/ASIO.obj bin/TCP.obj bin/UDP.obj
+objects = bin/ASIO.obj bin/TCP.obj bin/UDP.obj bin/SSL.obj
 
-all: $(objects) $(exes) udp tcp
+all: $(objects) udp tcp ssl
 udp: UDPServer.exe UDPClient.exe
 tcp: TCPServer.exe TCPClient.exe
+ssl: SSLServer.exe SSLClient.exe
 pureudp: PureUDPServer.exe PureUDPClient.exe
 puressl: PureSSLServer.exe PureSSLClient.exe
-puressl2: PureSSLServer2.exe PureSSLClient2.exe
 
 %.exe: bin/%.obj $(objects)
 	$(CC) $^ -o $@ $(CFLAGS) $(LDFLAGS) $(CMPFLAGS)
