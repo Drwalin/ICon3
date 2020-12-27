@@ -9,16 +9,19 @@
 
 namespace asio {
 	
+	const static uint64_t maxSinglePacketSize = 64*1024;
+	
 	template<typename T>
 	class Socket {
 	public:
 		
-		const static uint64_t maxSinglePacketSize = 64*1024;
-		
 		Socket();
-		~Socket();
+		virtual ~Socket();
+		Socket(Socket&&) = delete;
+		Socket(const Socket&) = delete;
+		Socket& operator =(const Socket&) = delete;
 		
-		virtual void Close()=0;
+		virtual void Close();
 		
 		const Endpoint& GetEndpoint() const;
 		
@@ -34,9 +37,16 @@ namespace asio {
 		
 		bool Valid() const;
 		
+		template<typename T2>
+		friend class Server;
+		
+		virtual bool FinalizeConnecting();
+		
 	protected:
 		
+#ifdef SOCKET_CPP
 		void FetchData(const boost::system::error_code& err, size_t length);
+#endif
 		void RequestDataFetch(uint64_t bytes);
 		
 		T* socket;
@@ -51,17 +61,18 @@ namespace asio {
 	public:
 		
 		Server();
-		~Server();
+		virtual ~Server();
 		
 		void Open(const Endpoint& endpoint);
 		virtual void Close();
 		
 		bool IsListening();
 		bool HasNewSocket() const;
-		T* TryGetSocket(int timeoutms=-1);
+		T* TryGetNewSocket(int timeoutms=-1);
+		T* GetNewSocket();
 		void StartListening();
 		
-		virtual bool Valid();
+		virtual bool Valid() const;
 		
 		
 	protected:

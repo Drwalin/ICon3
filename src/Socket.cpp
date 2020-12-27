@@ -2,6 +2,14 @@
 #ifndef SOCKET_CPP
 #define SOCKET_CPP
 
+#ifndef CPP_FILES_CPP
+#define CPP_FILES_CPP
+#endif
+
+#include "Socket.hpp"
+
+#include <thread>
+
 namespace asio{
 	
 	template<typename T>
@@ -13,6 +21,22 @@ namespace asio{
 	template<typename T>
 	Socket<T>::~Socket() {
 		Close();
+	}
+	
+	
+	template<typename T>
+	void Socket<T>::Close() {
+		endpoint = Endpoint();
+		if(socket) {
+			socket->close();
+			delete socket;
+			socket = NULL;
+		}
+		buffer.clear();
+		buffer.shrink_to_fit();
+		fetchRequestSize = 0;
+		while(!receivedMessages.empty())
+			receivedMessages.pop();
 	}
 	
 	
@@ -30,7 +54,8 @@ namespace asio{
 				uint64_t toWrite = std::min<uint64_t>(
 						buffer.size()-i,
 						maxSinglePacketSize);
-				uint64_t written = sock->write_some(
+				IoContextPollOne();
+				uint64_t written = socket->write_some(
 						boost::asio::buffer(
 							&(buffer[i]),
 							toWrite),
@@ -70,8 +95,8 @@ namespace asio{
 	template<typename T>
 	void Socket<T>::GetMessageCompletition(uint64_t&recvd, uint64_t& required) {
 		if(HasMessage()) {
-			required = recd =
-				message.front().title.size()+1 + message.front().data.size();
+			required = recvd = receivedMessages.front().title.size()+1
+				+ receivedMessages.front().data.size();
 		} else {
 			GetBufferMessageCompletition(recvd, required);
 		}
@@ -125,10 +150,21 @@ namespace asio{
 	
 	
 	template<typename T>
+	bool Socket<T>::FinalizeConnecting() {
+		if(Valid()) {
+			this->endpoint = Endpoint(socket->lowest_layer().remote_endpoint());
+			RequestDataFetch(1);
+			return true;
+		}
+		return false;
+	}
+	
+	
+	template<typename T>
 	void Socket<T>::FetchData(const boost::system::error_code& err,
 			size_t length) {
 		if(err) {
-			printf("\n Error occured while fetching data: %s", err.messageJ());
+			fprintf(stderr, "\n Error occured while fetching data: %s", err.message());
 		} else if(Valid()) {
 			if(fetchRequestSize != length)
 				buffer.resize(buffer.size()-(fetchRequestSize-length));
@@ -188,7 +224,7 @@ namespace asio{
 	template<typename T>
 	Server<T>::Server() {
 		acceptor = NULL;
-		currentAcceptingSocket = NULL
+		currentAcceptingSocket = NULL;
 	}
 	
 	template<typename T>
@@ -221,7 +257,7 @@ namespace asio{
 	}
 	
 	template<typename T>
-	bool Server<T>::HasNewSocket() {
+	bool Server<T>::HasNewSocket() const {
 		if(Valid()) {
 			if(newSockets.empty())
 				IoContextPollOne();
@@ -231,7 +267,7 @@ namespace asio{
 	}
 	
 	template<typename T>
-	T* Server<T>::TryGetSocket(int timeoutms=-1) {
+	T* Server<T>::TryGetNewSocket(int timeoutms) {
 		IoContextPollOne();
 		int end = clock() + timeoutms;
 		while(end>clock() && newSockets.empty() && Valid()) {
@@ -241,11 +277,20 @@ namespace asio{
 		}
 		if(!newSockets.empty()) {
 			T* ret = newSockets.front();
-			receivedMessages.pop();
+			newSockets.pop();
 			return ret;
 		}
 		return NULL;
-		
+	}
+	
+	template<typename T>
+	T* Server<T>::GetNewSocket() {
+		while(Valid()) {
+			T* socket = TryGetNewSocket(1000);
+			if(socket)
+				return socket;
+		}
+		return NULL;
 	}
 	
 	template<typename T>
@@ -254,13 +299,14 @@ namespace asio{
 			currentAcceptingSocket = CreateEmptyAcceptingSocket();
 			acceptor->async_accept(
 					currentAcceptingSocket->GetSocket()->lowest_layer(),
-					std::bind(&Server<T>::DoAccept, this, std::placeholders::_1));
+					std::bind(&Server<T>::DoAccept, this,
+						std::placeholders::_1));
 		}
 	}
 	
 	
 	template<typename T>
-	bool Server<T>::Valid() {
+	bool Server<T>::Valid() const {
 		return acceptor!=NULL;
 	}
 	
@@ -282,6 +328,12 @@ namespace asio{
 			StartListening();
 		}
 	}
+	
+	template<typename T>
+	bool Server<T>::Accept(T* socket) {
+		return socket!=NULL;
+	}
+	
 };
 
 #endif

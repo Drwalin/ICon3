@@ -4,10 +4,10 @@
 #include <ctime>
 #include <cstdlib>
 
+#include <TCP.hpp>
+
 #include <windows.h>
 #include <conio.h>
-
-#include <TCP.hpp>
 
 uint16_t Random(uint64_t& gen, uint64_t i) {
 	gen = (gen<<4) ^ (gen>>7) ^ i;
@@ -41,7 +41,7 @@ int main() {
 	
 	std::vector<uint8_t> uberMessageBuffer;
 	{
-		Message uberMessage("Message from client 6 !", RandomData(1024ll*1024ll*1024ll*3ll));
+		Message uberMessage("Message from client 6 !", RandomData(1024ll*1024ll*3ll));
 		CreateOptimalBuffer(uberMessage, uberMessageBuffer);
 	}
 	
@@ -56,31 +56,31 @@ int main() {
 		
 		Message msg;
 	
-		if(socket.PopMessage(msg, 10000))
+		if(socket.TryPopMessage(msg, 10000))
 			printf("\n received: %s", msg.title.c_str());
 		else
 			printf("\n timedout");
 		
-		if(socket.PopMessage(msg, 10000))
+		if(socket.TryPopMessage(msg, 10000))
 			printf("\n received: %s", msg.title.c_str());
 		else
 			printf("\n timedout");
 		
-		if(socket.PopMessage(msg, 10000))
+		if(socket.TryPopMessage(msg, 10000))
 			printf("\n received: %s", msg.title.c_str());
 		else
 			printf("\n timedout");
 		
 		socket.Send(Message("Message from client 4 !"));
 		
-		if(socket.PopMessage(msg, 10000))
+		if(socket.TryPopMessage(msg, 10000))
 			printf("\n received: %s", msg.title.c_str());
 		else
 			printf("\n timedout");
 		
 		socket.Send(Message("Message from client 5 !"));
 		
-		if(socket.PopMessage(msg, 10000))
+		if(socket.TryPopMessage(msg, 10000))
 			printf("\n received: %s", msg.title.c_str());
 		else
 			printf("\n timedout");
@@ -91,14 +91,15 @@ int main() {
 			Message msg;
 			int beg = clock();
 			while(true) {
-				if(socket.PopMessage(msg, 3000)) {
+				if(socket.TryPopMessage(msg, 3000)) {
 					printf("\n received: %s", msg.title.c_str());
 					break;
 				} else {
 					uint64_t recvd=0, req=0;
+					socket.GetMessageCompletition(recvd, req);
 					printf("\n timedout: %.2fs: %f%%",
 							(float)(clock()-beg)*0.001f,
-							socket.GetMessageCompletition(recvd, req));
+							(float)(recvd+1)*100.0f/(float)(req+1));
 					printf("\n received: %llu / %llu bytes", recvd, req);
 				}
 			}

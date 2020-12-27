@@ -6,64 +6,49 @@
 #include <vector>
 
 #include "ASIO.hpp"
+#include "Socket.hpp"
 
 namespace tcp {
 	
-	class Socket {
+	class Socket : public asio::Socket<boost::asio::ip::tcp::socket> {
 	public:
-		
 		Socket();
-		Socket(const Endpoint& endpoint);
-		Socket(Socket&&) = delete;
-		Socket(const Socket&) = delete;
-		Socket& operator =(const Socket&) = delete;
-		
-		
-		~Socket();
-		
-		bool Connect(const Endpoint& endpoint);
-		void CreateEmpty();
-		void Close();
-		
-		Endpoint GetEndpoint() const;
+		virtual ~Socket() override;
 		
 		bool Send(const std::vector<uint8_t>& buffer);
 		bool Send(const Message& msg);
-		
-		void FetchData();
-		
+		bool TryPopMessage(Message& message, int timeoutms=-1);
+		void GetMessageCompletition(uint64_t&recvd, uint64_t& required);
+		boost::asio::ip::tcp::socket* GetSocket();
 		bool HasMessage() const;
-		float GetMessageCompletition(uint64_t&recvd, uint64_t& required);
-		bool PopMessage(Message& message, int timeoutms=-1);
+		void Close();
 		
-		bool Valid() const;
+		bool Connect(const Endpoint& endpoint);
 		
-		friend class Server;
-		
-	private:
-		
-		boost::asio::ip::tcp::socket* sock;
-		std::vector<uint8_t> buffer;
+		void CreateEmptySocket();
 	};
 	
 	
 	
-	class Server {
+	class Server : public asio::Server<Socket> {
 	public:
 		
 		Server();
-		~Server();
+		virtual ~Server() override;
 		
 		void Open(const Endpoint& endpoint);
-		void Close();
+		virtual void Close() override;
 		
-		bool Listen(Socket* socket);
+		bool IsListening();
+		bool HasNewSocket() const;
+		Socket* TryGetNewSocket(int timeoutms=-1);
+		Socket* GetNewSocket();
+		void StartListening();
 		
-		bool Valid() const;
+		virtual bool Valid() const override;
 		
-	private:
-		
-		boost::asio::ip::tcp::acceptor* acceptor;
+		virtual Socket* CreateEmptyAcceptingSocket() override;
+		virtual bool Accept(Socket* socket) override;
 	};
 };
 

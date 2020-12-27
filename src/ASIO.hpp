@@ -9,6 +9,8 @@
 
 #include <cinttypes>
 
+void IoContextPollOne();
+
 #ifdef CPP_FILES_CPP
 
 #include <boost/asio/buffer.hpp>
@@ -18,7 +20,6 @@
 
 extern "C" boost::asio::io_context *ioContext;
 boost::asio::io_context& IoContext();
-void IoContextPollOne();
 
 #else
 
