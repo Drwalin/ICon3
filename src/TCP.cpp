@@ -22,6 +22,8 @@
 
 namespace tcp {
 	
+	boost::asio::io_context ioContext;
+	
 	Socket::Socket() {
 		sock = NULL;
 	}
@@ -29,10 +31,6 @@ namespace tcp {
 	Socket::Socket(const Endpoint& endpoint) {
 		sock = NULL;
 		Connect(endpoint);
-	}
-	
-	Socket::Socket(Socket&& other) :
-		sock(other.sock), buffer(other.buffer) {
 	}
 	
 	Socket::~Socket() {
@@ -54,7 +52,7 @@ namespace tcp {
 	
 	void Socket::CreateEmpty() {
 		Close();
-		sock = new boost::asio::ip::tcp::socket(IoService());
+		sock = new boost::asio::ip::tcp::socket(ioContext);
 	}
 	
 	void Socket::Close() {
@@ -199,7 +197,7 @@ namespace tcp {
 	void Server::Open(const Endpoint& endpoint) {
 		Close();
 		acceptor = new boost::asio::ip::tcp::acceptor(
-				IoService(),
+				ioContext,
 				endpoint.TcpEndpoint());
 	}
 	

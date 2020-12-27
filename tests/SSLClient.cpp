@@ -42,7 +42,7 @@ int main() {
 	
 	std::vector<uint8_t> uberMessageBuffer;
 	{
-		Message uberMessage("Message from client 6 !", RandomData(1024ll*1024ll*1024ll*3ll));
+		Message uberMessage("Message from client 6 !", RandomData(1024ll*1024ll*3ll));
 		CreateOptimalBuffer(uberMessage, uberMessageBuffer);
 	}
 	

@@ -5,13 +5,14 @@
 
 #include "ASIO.hpp"
 
-boost::asio::io_service *io_service = NULL;
-boost::asio::io_service& IoService() {
-	if(io_service == NULL) {
-		io_service = new boost::asio::io_service;
-		io_service->run();
-	}
-	return *io_service;
+boost::asio::io_context *ioContext = NULL;
+boost::asio::io_context& IoContext() {
+	if(ioContext == NULL)
+		ioContext = new boost::asio::io_context;
+	return *ioContext;
+}
+void IoContextPollOne() {
+	IoContext().poll_one();
 }
 
 

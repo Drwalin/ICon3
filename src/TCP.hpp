@@ -14,7 +14,10 @@ namespace tcp {
 		
 		Socket();
 		Socket(const Endpoint& endpoint);
-		Socket(Socket&& other);
+		Socket(Socket&&) = delete;
+		Socket(const Socket&) = delete;
+		Socket& operator =(const Socket&) = delete;
+		
 		
 		~Socket();
 		

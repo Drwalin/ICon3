@@ -92,7 +92,7 @@ namespace udp {
 	void Socket::Open(const GlobalEndpoint& endpoint) {
 		Close();
 		Endpoint end(endpoint);
-		sock = new boost::asio::ip::udp::socket(IoService(), *end.ptr);
+		sock = new boost::asio::ip::udp::socket(IoContext(), *end.ptr);
 	}
 	
 	void Socket::Close() {

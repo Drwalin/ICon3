@@ -11,21 +11,20 @@
 
 #ifdef CPP_FILES_CPP
 
-#include <boost/asio/io_service.hpp>
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ip/udp.hpp>
 #include <boost/asio/ssl.hpp>
 
-extern "C" boost::asio::io_service *io_service;
-boost::asio::io_service& IoService();
+extern "C" boost::asio::io_context *ioContext;
+boost::asio::io_context& IoContext();
+void IoContextPollOne();
 
 #else
 
 namespace boost {
 	namespace asio {
 		class io_context;
-		class io_service;
 		namespace ip {
 			namespace tcp {
 				class socket;

@@ -15,7 +15,6 @@ namespace ssl {
 	
 	Socket::Socket() {
 		sock = NULL;
-		sslContext = NULL;
 		fetchRequestSize = 0;
 		ioContext = NULL;
 		ioContextReference = false;
@@ -23,7 +22,6 @@ namespace ssl {
 	
 	Socket::Socket(const Endpoint& endpoint, const char* certificateFile) {
 		sock = NULL;
-		sslContext = NULL;
 		fetchRequestSize = 0;
 		ioContext = NULL;
 		ioContextReference = false;
@@ -40,23 +38,11 @@ namespace ssl {
 		ioContext = new boost::asio::io_context();
 		ioContextReference = false;
 		printf("\n Connecting");
-		sslContext = new boost::asio::ssl::context(
-				boost::asio::ssl::context::sslv23);
-		sslContext->load_verify_file(certificateFile);
+		boost::asio::ssl::context sslContext(boost::asio::ssl::context::sslv23);
+		sslContext.load_verify_file(certificateFile);
 		sock = new boost::asio::ssl::stream<boost::asio::ip::tcp::socket>(
-				*ioContext, *sslContext);
+				*ioContext, sslContext);
 		sock->set_verify_mode(boost::asio::ssl::verify_peer);
-		sock->set_verify_callback(
-				[](bool preverified, boost::asio::ssl::verify_context& ctx) {
-					char subject_name[256];
-					X509* cert = X509_STORE_CTX_get_current_cert(
-							ctx.native_handle());
-					X509_NAME_oneline(X509_get_subject_name(cert),
-							subject_name, 256);
-					printf("Verifying: %s ", subject_name);
-					printf("\n preverified: %s", preverified?"true":"false");
-					return preverified;
-				});
 		boost::system::error_code err;
 		sock->lowest_layer().connect(endpoint.TcpEndpoint(), err);
 		if(err) {
@@ -113,13 +99,10 @@ namespace ssl {
 		if(sock)
 			delete sock;
 		sock = NULL;
-		if(sslContext)
-			delete sslContext;
 		if(ioContext && ioContextReference==false)
 			delete ioContext;
 		ioContext = NULL;
 		ioContextReference = false;
-		sslContext = NULL;
 		buffer.clear();
 		while(!receivedMessages.empty())
 			receivedMessages.pop();

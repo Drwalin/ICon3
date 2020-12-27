@@ -53,7 +53,6 @@ namespace ssl {
 		
 		bool ioContextReference;
 		boost::asio::io_context* ioContext;
-		boost::asio::ssl::context* sslContext;
 		boost::asio::ssl::stream<boost::asio::ip::tcp::socket>* sock;
 		std::vector<uint8_t> buffer;
 		std::queue<Message> receivedMessages;
