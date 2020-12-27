@@ -30,30 +30,32 @@ namespace tcp {
 	}
 	
 	bool Socket::Send(const std::vector<uint8_t>& buffer) {
-		return asio::Socket<boost::asio::ip::tcp::socket>::Send(buffer);
+		return SocketBase::Send(buffer);
 	}
 	bool Socket::Send(const Message& msg) {
-		return asio::Socket<boost::asio::ip::tcp::socket>::Send(msg);
+		return SocketBase::Send(msg);
 	}
 	bool Socket::TryPopMessage(Message& message, int timeoutms) {
-		return asio::Socket<boost::asio::ip::tcp::socket>::TryPopMessage(message, timeoutms);
+		return SocketBase::TryPopMessage(message, timeoutms);
 	}
 	void Socket::GetMessageCompletition(uint64_t&recvd, uint64_t& required) {
-		return asio::Socket<boost::asio::ip::tcp::socket>::GetMessageCompletition(recvd, required);
+		SocketBase::GetMessageCompletition(recvd, required);
 	}
-	boost::asio::ip::tcp::socket* Socket::GetSocket() {
-		return asio::Socket<boost::asio::ip::tcp::socket>::GetSocket();
+	ProtocolSocket* Socket::GetSocket() {
+		return SocketBase::GetSocket();
 	}
 	bool Socket::HasMessage() const {
-		return asio::Socket<boost::asio::ip::tcp::socket>::HasMessage();
+		return SocketBase::HasMessage();
 	}
 	void Socket::Close() {
-		return asio::Socket<boost::asio::ip::tcp::socket>::Close();
+		if(socket)
+			socket->close();
+		SocketBase::Close();
 	}
 	
 	bool Socket::Connect(const Endpoint& endpoint) {
 		Close();
-		socket = new boost::asio::ip::tcp::socket(IoContext());
+		socket = new ProtocolSocket(IoContext());
 		boost::system::error_code err;
 		socket->connect(endpoint.TcpEndpoint(), err);
 		if(err) {
@@ -67,7 +69,7 @@ namespace tcp {
 	
 	void Socket::CreateEmptySocket() {
 		Close();
-		socket = new boost::asio::ip::tcp::socket(IoContext());
+		socket = new ProtocolSocket(IoContext());
 	}
 	
 	
@@ -80,37 +82,37 @@ namespace tcp {
 	
 	
 	void Server::Open(const Endpoint& endpoint) {
-		return asio::Server<Socket>::Open(endpoint);
+		ServerBase::Open(endpoint);
 	}
 	
 	void Server::Close() {
-		return asio::Server<Socket>::Close();
+		ServerBase::Close();
 	}
 	
 	
 	bool Server::IsListening() {
-		return asio::Server<Socket>::IsListening();
+		return ServerBase::IsListening();
 	}
 	
 	bool Server::HasNewSocket() const {
-		return asio::Server<Socket>::HasNewSocket();
+		return ServerBase::HasNewSocket();
 	}
 	
 	Socket* Server::TryGetNewSocket(int timeoutms) {
-		return asio::Server<Socket>::TryGetNewSocket(timeoutms);
+		return ServerBase::TryGetNewSocket(timeoutms);
 	}
 	
 	Socket* Server::GetNewSocket() {
-		return asio::Server<Socket>::GetNewSocket();
+		return ServerBase::GetNewSocket();
 	}
 	
 	void Server::StartListening() {
-		return asio::Server<Socket>::StartListening();
+		ServerBase::StartListening();
 	}
 	
 	
 	bool Server::Valid() const {
-		return asio::Server<Socket>::Valid();
+		return ServerBase::Valid();
 	}
 	
 	

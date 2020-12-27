@@ -10,8 +10,12 @@
 
 namespace tcp {
 	
-	class Socket : public asio::Socket<boost::asio::ip::tcp::socket> {
+	using ProtocolSocket = boost::asio::ip::tcp::socket;
+	using SocketBase = asio::Socket<ProtocolSocket>;
+	
+	class Socket : public asio::Socket<ProtocolSocket> {
 	public:
+		
 		Socket();
 		virtual ~Socket() override;
 		
@@ -19,9 +23,9 @@ namespace tcp {
 		bool Send(const Message& msg);
 		bool TryPopMessage(Message& message, int timeoutms=-1);
 		void GetMessageCompletition(uint64_t&recvd, uint64_t& required);
-		boost::asio::ip::tcp::socket* GetSocket();
+		ProtocolSocket* GetSocket();
 		bool HasMessage() const;
-		void Close();
+		virtual void Close() override;
 		
 		bool Connect(const Endpoint& endpoint);
 		
@@ -29,6 +33,8 @@ namespace tcp {
 	};
 	
 	
+	
+	using ServerBase = asio::Server<Socket>;
 	
 	class Server : public asio::Server<Socket> {
 	public:

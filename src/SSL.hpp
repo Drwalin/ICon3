@@ -4,86 +4,64 @@
 
 #include <string>
 #include <vector>
-#include <queue>
 
 #include "ASIO.hpp"
+#include "Socket.hpp"
 
 namespace ssl {
 	
-	class Socket {
+	using ProtocolSocket = boost::asio::ssl::stream<boost::asio::ip::tcp::socket>;
+	using SocketBase = asio::Socket<ProtocolSocket>;
+	
+	class Socket : public asio::Socket<ProtocolSocket> {
 	public:
 		
 		Socket();
-		Socket(const Endpoint& endpoint, const char* certificateFile);
-		Socket(Socket&&) = delete;
-		Socket(const Socket&) = delete;
-		Socket& operator =(const Socket&) = delete;
-		
-		~Socket();
-		
-		bool Connect(const Endpoint& endpoint, const char* certificateFile);
-		void CreateEmpty(boost::asio::ssl::context* sslContext,
-				boost::asio::io_context* ioContext);
-		bool StartServerSide();
-		void Close();
-		
-		Endpoint GetEndpoint() const;
+		virtual ~Socket() override;
 		
 		bool Send(const std::vector<uint8_t>& buffer);
 		bool Send(const Message& msg);
-		
+		bool TryPopMessage(Message& message, int timeoutms=-1);
+		void GetMessageCompletition(uint64_t&recvd, uint64_t& required);
+		ProtocolSocket* GetSocket();
 		bool HasMessage() const;
-		float GetMessageCompletition(uint64_t&recvd, uint64_t& required);
-		bool PopMessage(Message& message, int timeoutms=-1);
+		virtual void Close() override;
 		
-		bool Valid() const;
+		bool Connect(const Endpoint& endpoint, const char* certificateFile);
 		
-		void Poll();
-		
-		boost::asio::ssl::stream<boost::asio::ip::tcp::socket>* GetSocket();
-		
-		friend class Server;
-		
-	private:
-		
-#ifdef CPP_FILES_CPP
-		void FetchData(const boost::system::error_code& err, size_t length);
-		void CallRequest(uint64_t bytes);
-#endif
-		
-		bool ioContextReference;
-		boost::asio::io_context* ioContext;
-		boost::asio::ssl::stream<boost::asio::ip::tcp::socket>* sock;
-		std::vector<uint8_t> buffer;
-		std::queue<Message> receivedMessages;
-		uint64_t fetchRequestSize;
+		void CreateEmptySocket(boost::asio::ssl::context* sslContext);
+		bool StartServerSide();
 	};
 	
 	
 	
-	class Server {
+	using ServerBase = asio::Server<Socket>;
+	
+	class Server : public asio::Server<Socket> {
 	public:
 		
 		Server();
-		~Server();
+		virtual ~Server() override;
 		
-		void Open(const Endpoint& endpoint, const char* certChain,
-				const char* privateKey, const char* dhFile);
-		void Close();
+		void Open(const Endpoint& endpoint, const char* certChainFile,
+				const char* privateKeyFile, const char* dhFile);
+		virtual void Close() override;
 		
-		// I have no idea what is the purpose of this method, but all examples
-		// had it returning "test" and set as context->set_password_callback()
-		std::string GetPassword() const;
+		bool IsListening();
+		bool HasNewSocket() const;
+		Socket* TryGetNewSocket(int timeoutms=-1);
+		Socket* GetNewSocket();
+		void StartListening();
 		
-		bool Listen(Socket* socket);
+		virtual bool Valid() const override;
 		
-		bool Valid() const;
+		virtual Socket* CreateEmptyAcceptingSocket() override;
+		virtual bool Accept(Socket* socket) override;
 		
 	private:
 		
-		boost::asio::ip::tcp::acceptor* acceptor;
 		boost::asio::ssl::context* sslContext;
-		boost::asio::io_context* ioContext;
+		
 	};
 };
 

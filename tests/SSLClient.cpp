@@ -57,31 +57,31 @@ int main() {
 		
 		Message msg;
 	
-		if(socket.PopMessage(msg, 1000))
+		if(socket.TryPopMessage(msg, 1000))
 			printf("\n received: %s", msg.title.c_str());
 		else
 			printf("\n timedout");
 		
-		if(socket.PopMessage(msg, 1000))
+		if(socket.TryPopMessage(msg, 1000))
 			printf("\n received: %s", msg.title.c_str());
 		else
 			printf("\n timedout");
 		
-		if(socket.PopMessage(msg, 1000))
+		if(socket.TryPopMessage(msg, 1000))
 			printf("\n received: %s", msg.title.c_str());
 		else
 			printf("\n timedout");
 		
 		socket.Send(Message("Message from client 4 !"));
 		
-		if(socket.PopMessage(msg, 1000))
+		if(socket.TryPopMessage(msg, 1000))
 			printf("\n received: %s", msg.title.c_str());
 		else
 			printf("\n timedout");
 		
 		socket.Send(Message("Message from client 5 !"));
 		
-		if(socket.PopMessage(msg, 1000))
+		if(socket.TryPopMessage(msg, 1000))
 			printf("\n received: %s", msg.title.c_str());
 		else
 			printf("\n timedout");
@@ -92,14 +92,15 @@ int main() {
 			Message msg;
 			int beg = clock();
 			while(true) {
-				if(socket.PopMessage(msg, 3000)) {
+				if(socket.TryPopMessage(msg, 3000)) {
 					printf("\n received: %s", msg.title.c_str());
 					break;
 				} else {
 					uint64_t recvd=0, req=0;
+					socket.GetMessageCompletition(recvd, req);
 					printf("\n timedout: %.2fs: %f%%",
 							(float)(clock()-beg)*0.001f,
-							socket.GetMessageCompletition(recvd, req));
+							(float)(recvd+1)*100.0f/(float)(req+1));
 					printf("\n received: %llu / %llu bytes", recvd, req);
 				}
 			}

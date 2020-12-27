@@ -28,7 +28,6 @@ namespace asio{
 	void Socket<T>::Close() {
 		endpoint = Endpoint();
 		if(socket) {
-			socket->close();
 			delete socket;
 			socket = NULL;
 		}
