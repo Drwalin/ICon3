@@ -61,8 +61,6 @@ int main() {
 		else
 			printf("\n timedout");
 		
-		socket->Send(Message("Message from server 6 !"));
-		
 		while(true) {
 			uint64_t recvd=0, req=0;
 			IoContextPollOne();
@@ -74,20 +72,23 @@ int main() {
 		int beg = clock();
 		while(true) {
 			IoContextPollOne();
-			if(socket->HasMessage()) {
-				uint64_t recvd=0, req=0;
-				socket->GetMessageCompletition(recvd, req);
-				printf("\n received: %2.2f%% = ",
-						(float)(recvd+1)*100.0f/(float)(req+1));
-				printf(" %llu / %llu bytes", recvd, req);
-				printf("   speed = %.2f MiB/s", (float)(recvd)*1000.0f/1024.0f/1024.0f/(float)(clock()-beg));
-			}
+			uint64_t recvd=0, req=0;
+			socket->GetMessageCompletition(recvd, req);
+			printf("\n received: %2.2f%% = ",
+					(float)(recvd+1)*100.0f/(float)(req+1));
+			printf(" %llu / %llu bytes", recvd, req);
+			printf("   speed = %.2f MiB/s", (float)(recvd)*1000.0f/1024.0f/1024.0f/(float)(clock()-beg));
 			if(socket->TryPopMessage(msg, 3000)) {
+				recvd = msg.title.size() + 1 + msg.data.size() + 2;
 				printf("\n received: %s", msg.title.c_str());
+				printf("   speed = %.2f MiB/s", (float)(recvd)*1000.0f/1024.0f/1024.0f/(float)(t));
 				printf("\n checksum: %s", CheckChecksum(msg.data)?"true":"false");
 				break;
 			}
 		}
+		
+		socket->Send(Message("Message from server 6 !"));
+		
 		socket->Close();
 		delete socket;
 		socket = NULL;

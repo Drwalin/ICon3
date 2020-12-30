@@ -1,0 +1,27 @@
+
+Readme for ICon3 library.
+
+ This library is developed by Marek Zalewski aka Drwalin under GPL v3 license
+(for licensing pleas see COPYING file).
+
+
+Source code available at <https://www.github.com/drwalin/icon3>
+
+
+    Requirements:
+  
+  This library requires boost and OpenSSL. Developed with boost 1.75 and
+OpenSSL 1.1.1i.
+
+
+    Legal information
+
+  This library is developed under GNU GPL v3 license. License file (named
+COPYING) was downloaded from <https://www.gnu.org/licenses/gpl-3.0.txt>
+
+  This product includes software developed by the OpenSSL Project
+for use in the OpenSSL Toolkit. (http://www.openssl.org/)
+
+  Using for performance tests and code validation moodycamel::ConcurrentQueue<T>
+in ConcurrentTest.cpp
+

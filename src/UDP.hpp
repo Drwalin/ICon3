@@ -1,3 +1,20 @@
+/*
+ *  This file is part of ICon3. Please see README for details.
+ *  Copyright (C) 2020 Marek Zalewski aka Drwalin
+ *
+ *  ICon3 is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  ICon3 is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 
 #ifndef UDP_HPP
 #define UDP_HPP
@@ -22,12 +39,17 @@ namespace udp {
 	class Endpoint {
 	public:
 		
+		Endpoint(bool empty);
+		Endpoint(bool ref, boost::asio::ip::udp::endpoint* ptr);
 		Endpoint();
 		Endpoint(const GlobalEndpoint& endpoint);
 		Endpoint(const Endpoint& endpoint);
-		Endpoint(Endpoint&& endpoint) : ptr(endpoint.ptr) {}
+		Endpoint(Endpoint&& endpoint) : ptr(endpoint.ptr), ref(endpoint.ref) {}
 		Endpoint(uint16_t port);
 		~Endpoint();
+		
+		static Endpoint MakeEmpty();
+		static Endpoint Make(boost::asio::ip::udp::endpoint* ptr);
 		
 		Endpoint& operator = (const Endpoint& other);
 		bool operator < (const Endpoint& r) const;
@@ -35,7 +57,10 @@ namespace udp {
 		bool operator != (const Endpoint& r) const;
 		
 		operator GlobalEndpoint() const;
+		
 		boost::asio::ip::udp::endpoint* ptr;
+	private:
+		bool ref;
 	};
 	
 	

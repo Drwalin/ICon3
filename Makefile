@@ -1,5 +1,5 @@
 
-CFLAGS = -Ofast -s -m64 -pipe
+CFLAGS = -Ofast -s -m64 -pipe -std=c++17
 CMPFLAGS = -IC:\Programs\mingw-w64\include -Isrc
 LDFLAGS = -LC:\Programs\mingw-w64\lib
 LDFLAGS += -lwinmm -lWs2_32 -lMswsock -lAdvApi32 -lmsvcrt -lpthread -lcrypto -lssl
@@ -13,6 +13,10 @@ tcp: TCPServer.exe TCPClient.exe
 ssl: SSLServer.exe SSLClient.exe
 pureudp: PureUDPServer.exe PureUDPClient.exe
 puressl: PureSSLServer.exe PureSSLClient.exe
+concurrent: ConcurrentTest.exe
+
+ConcurrentTest.exe: tests/ConcurrentTest.cpp src/Concurrent.hpp src/Benchmark.hpp
+	$(CC) $< -o $@ $(CFLAGS) $(CMPFLAGS)
 
 %.exe: bin/%.obj $(objects)
 	$(CC) $^ -o $@ $(CFLAGS) $(LDFLAGS) $(CMPFLAGS)

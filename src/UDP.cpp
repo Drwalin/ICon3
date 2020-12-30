@@ -1,3 +1,20 @@
+/*
+ *  This file is part of ICon3. Please see README for details.
+ *  Copyright (C) 2020 Marek Zalewski aka Drwalin
+ *
+ *  ICon3 is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  ICon3 is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 
 #ifndef CPP_FILES_CPP
 #define CPP_FILES_CPP
@@ -26,29 +43,64 @@
 namespace udp {
 	
 	Endpoint::Endpoint() {
+		ref = false;
+		ptr = new boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), 0);
+	}
+	
+	Endpoint::Endpoint(bool empty) {
+		ref = false;
+		ptr = NULL;
+	}
+	
+	Endpoint::Endpoint(bool ref, boost::asio::ip::udp::endpoint* ptr) {
+		this->ref = ref;
+		if(ref)
+			this->ptr = ptr;
+		else
+			this->ptr = new boost::asio::ip::udp::endpoint(*);
+	}
+	
+	Endpoint::Endpoint() {
+		ref = false;
 		ptr = new boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), 0);
 	}
 	
 	Endpoint::Endpoint(const GlobalEndpoint& endpoint) {
+		ref = false;
 		ptr = new boost::asio::ip::udp::endpoint(endpoint.UdpEndpoint());
 	}
 	
 	Endpoint::Endpoint(const Endpoint& endpoint) {
+		ref = false;
 		ptr = new boost::asio::ip::udp::endpoint(*endpoint.ptr);
 	}
 	
 	Endpoint::Endpoint(uint16_t port) {
+		ref = false;
 		ptr = new boost::asio::ip::udp::endpoint(
 				boost::asio::ip::udp::v4(),
 				port);
 	}
 	
 	Endpoint::~Endpoint() {
-		delete ptr;
+		if(!ref && ptr)
+			delete ptr;
 	}
 	
+	
+	Endpoint Endpoint::MakeEmpty() {
+		return Endpoint(true);
+	}
+	
+	Endpoint Endpoint::Make(boost::asio::ip::udp::endpoint* ptr) {
+		return Endpoint(true, ptr);
+	}
+	
+	
 	Endpoint& Endpoint::operator = (const Endpoint& other) {
-		delete ptr;
+		if(!ref && ptr)
+			delete ptr;
+		ref = false;
 		ptr = new boost::asio::ip::udp::endpoint(*other.ptr);
 		return *this;
 	}
@@ -75,7 +127,9 @@ namespace udp {
 	}
 	
 	Endpoint::operator GlobalEndpoint() const {
-		return GlobalEndpoint(*ptr);
+		if(ptr)
+			return GlobalEndpoint(*ptr);
+		return GlobalEndpoint();
 	}
 	
 	
