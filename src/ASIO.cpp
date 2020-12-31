@@ -252,6 +252,113 @@ void Message::Swap(Message& other) {
 
 
 
+FastMessage::FastMessage() {
+	SetEmpty();
+}
+
+FastMessage::~FastMessage() {
+}
+
+
+bool FastMessage::SetMessageBody(const char* str, uint64_t strbytes, void* data, uint64_t dataBytes) {
+	titleLength = strBytes;
+	dataLength = dataBytes;
+	titleAndDataLength = strBytes+1 + dataBytes;
+	NumberBuffer size;
+	uint64_t head = size.SetValue(titleAndDataLength);
+	if(head == 0)
+		return false
+	wholeMessageLength = head+titleAndDataLength;
+	if(wholeMessageLength > maxFastMessageSize)
+		return false;
+	for(int i=0; i<head; ++i)
+		buffer[i] = size.GetData()[i];
+	title = buffer+head;
+	this->data = title+titleLength+1;
+	memcpy(title, str, titleLength);
+	titles[str] = 0;
+	memspy(this->data, data, dataBytes);
+	return true;
+}
+
+bool FastMessage::SetMessageBody(const char* str, void* data, uint64_t dataBytes) {
+	return SetMessageBody(str, strlen(str), data, dataBytes);
+}
+
+bool FastMessage::SetMessageBody(const std::string& str, const void* data, uint64_t dataBytes) {
+	return SetMessageBody(str.c_str(), str.size(), data, dataBytes);
+}
+
+bool FastMessage::SetMessageBody(const std::string& str, const std::vector<uint8_t>& data) {
+	return SetMessageBody(std.c_str(), str.size(), &data.front(), data.size());
+}
+
+bool FastMessage::SetMessageBody(const char* str, const std::vector<uint8_t>& data) {
+	return SetMessageBody(str, strlen(str), &data.front(), data.size());
+}
+
+
+bool FastMessage::Decode(const void* data, uint64_t dataBytes) {
+	if(PrepareForDecoding(data, dataBytes)) {
+		memcpy(buffer, data, wholeMessageLength);
+		DecodeInternal();
+		return true;
+	}
+	return false;
+}
+
+bool FastMessage::Decode(const std::vector<uint8_t>& data) {
+	return Decode(&data.front(), data.size());
+}
+
+
+void FastMessage::StartWritingBuffer() {
+	SetEmpty();
+}
+
+bool FastMessage::PrepareForDecoding(const void* data, uint64_t dataBytes) {
+	NumberBuffer size;
+	size_t head = size.SetBytes((const uint8_t*)buffer, wholeMessageLength);
+	if(head == 0)
+		return false;
+	wholeMessageLength = head+size.GetValue();
+	if(wholeMessageLength > maxFastMessageSize)
+		return false;
+	if(wholeMessageLength > dataBytes)
+		return false;
+	title = buffer+head;
+	titleAndDataLength = wholeMessageLength-head;
+	return true;
+}
+
+void FastMessage::DecodeInternal() {
+	buffer[wholeMessageLength] = 0;
+	titleLength = strlen(title);
+	data = title+titleLength+1;
+	dataLength = titleAndDataLength - (titleLength+1);
+}
+
+bool FastMessage::Decode() {
+	if(PrepareForDecoding(data, dataBytes)) {
+		DecodeInternal();
+		return true;
+	}
+	return false;
+}
+
+
+void FastMessage::SetEmpty() {
+	titleLength = 0;
+	dataLength = 0;
+	titleAndDataLength = 0;
+	wholeMessageLength = 0;
+	title = buffer;
+	data = buffer;
+	buffer[0] = 0;
+}
+
+
+
 void CreateOptimalBuffer(const Message& msg,
 		std::vector<uint8_t>& buffer) {
 	NumberBuffer size(msg.title.size()+1 + msg.data.size());

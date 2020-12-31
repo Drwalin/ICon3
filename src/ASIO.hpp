@@ -64,7 +64,7 @@ namespace boost {
 
 #endif
 
-#define DEBUG(x) {fprintf(stderr,"\n %s : %s:%i",x,__FILE__,__LINE__); fflush(stderr);}
+#include <Debug.hpp>
 
 class BasicSocket {
 public:
@@ -140,6 +140,39 @@ public:
 	std::vector<uint8_t> data;
 };
 
+class FastMessage {
+public:
+	
+	const static uint64_t maxFastMessageSize = 64*1024;
+	
+	FastMessage();
+	~FastMessage();
+	
+	bool SetMessageBody(const char* str, uint64_t strBytes, void* data, uint64_t dataBytes);
+	bool SetMessageBody(const char* str, void* data, uint64_t dataBytes);
+	bool SetMessageBody(const std::string& str, const void* data, uint64_t dataBytes);
+	bool SetMessageBody(const std::string& str, const std::vector<uint8_t>& data);
+	bool SetMessageBody(const char* str, const std::vector<uint8_t>& data);
+	
+	bool Decode(const void* data, uint64_t dataBytes);
+	bool Decode(const std::vector<uint8_t>& data);
+	
+	void StartWritingBuffer();
+	bool PrepareForDecoding(const void* data, uint64_t dataBytes);
+	void DecodeInternal();
+	void Decode();
+	
+	void SetEmpty();
+	
+	
+	uint64_t titleLength;
+	uint64_t dataLength;
+	uint64_t titleAndDataLength;
+	uint64_t wholeMessageLength;
+	char* title;
+	char* data;
+	uint8_t buffer[maxFastMessageSize+1];
+};
 
 template<typename T1, typename T2>
 class BiMap {

@@ -28,13 +28,32 @@
 
 #include <Concurrent.hpp>
 
+#include <Debug.hpp>
+
+#ifdef USE_CSV_OUTPUT
+# include <fstream>
+# include <string>
+# include <ctime>
+std::ofstream csv_file((std::string("log\\log-")+std::to_string(time(NULL))+
+			".csv").c_str());
+uint64_t csv_line_id=0;
+# define CSV_VALUE(value) {csv_file<<(value)<<",";csv_file.flush();}
+# define CSV_LINE() {csv_file<<"\n";csv_file.flush();}
+# define CSV_LINE_ID() {csv_file<<csv_line_id<<",";++csv_line_id;csv_file.flush();}
+#else
+# define CSV_VALUE(value)
+# define CSV_LINE()
+# define CSV_LINE_ID()
+#endif
+
 #define __TO_STRING_MACRO_EXPRESSION(__string) \
 	__TO_STRING_MACRO_EXPRESSION2(__string)
 #define __TO_STRING_MACRO_EXPRESSION2(__string) \
 	#__string
 
 #define __BENCHMARK_LOOP_CODE(__task, __batch_size) \
-		for(uint64_t i=0; doNotStop; I[thread_id]=i) { \
+		uint64_t i=0; \
+		for(; doNotStop; ) { \
 			uint64_t end = i+__batch_size; \
 			for(;i<end;++i) { \
 				__task; \
@@ -49,18 +68,21 @@
 		__task) \
 class { \
 	concurrent::atomic<bool> start; \
-	volatile bool doNotStop; \
 	concurrent::atomic<size_t> done; \
+	concurrent::atomic<size_t> ready; \
+	volatile bool doNotStop; \
 	size_t threads; \
 	uint64_t *I; \
 	void loop(int thread_id) { \
 		__thread_local_data_type local; \
-		__thread_local_data_init; \
+		{__thread_local_data_init}; \
+		++ready; \
 		while(start.load() == false) { \
 		} \
 		I[thread_id]=0; \
 		__BENCHMARK_LOOP_CODE(__task, __batch_size) \
 		__end: \
+		I[thread_id]=i; \
 		done++; \
 	} \
 public: \
@@ -68,6 +90,7 @@ public: \
 	bool count_only_first_thread=false; \
 	__shared_data_type shared; \
 	double run(float test_duration_seconds, size_t _threads) { \
+		ready = 0; \
 		doNotStop = true; \
 		threads = _threads; \
 		I = new uint64_t[threads]; \
@@ -77,40 +100,59 @@ public: \
 			std::thread(&loop, this, i).detach(); \
 		} \
 		std::this_thread::sleep_for(std::chrono::milliseconds(100)); \
+		while(ready < threads) { \
+			std::this_thread::yield(); \
+		} \
+		start = true; \
 		std::chrono::high_resolution_clock::time_point begin = \
 			std::chrono::high_resolution_clock::now(); \
-		start = true; \
-		std::this_thread::sleep_for( \
-				std::chrono::nanoseconds( \
-					(uint64_t)(test_duration_seconds*1000ll*1000ll*1000ll))); \
+		\
+		for(;;) { \
+			std::this_thread::yield(); \
+			std::chrono::high_resolution_clock::time_point end = \
+				std::chrono::high_resolution_clock::now(); \
+			std::chrono::duration<double> duration = \
+				std::chrono::duration<double>(end - begin); \
+			if(duration.count() > test_duration_seconds) \
+				break; \
+			if(done.load() != 0) \
+				break; \
+		} \
 		doNotStop = false; \
-		std::chrono::high_resolution_clock::time_point end = \
-			std::chrono::high_resolution_clock::now(); \
+		while(done.load() < threads) \
+			std::this_thread::yield(); \
 		uint64_t sum=0; \
+		uint64_t full_sum=0; \
 		if(count_only_first_thread) \
 			sum = I[0]; \
-		else \
-			for(size_t j=0; j<threads; ++j) { \
-				sum += I[j]; \
-			} \
-		while(done.load() != threads) \
-			std::this_thread::yield(); \
+		else for(size_t j=0; j<threads; ++j) \
+			sum += I[j]; \
+		for(size_t j=0; j<threads; ++j) \
+			full_sum += I[j]; \
+		std::chrono::high_resolution_clock::time_point end = \
+			std::chrono::high_resolution_clock::now(); \
 		std::chrono::duration<double> duration = \
 			std::chrono::duration<double>(end - begin); \
 		if(render_header) \
 			print_header(); \
 		fprintf(stderr, \
-				"\n         %llu threads %4.2f Mop/s (%llu in %.2fs)", \
+				"\n         %llu threads %4.2f Mop/s (%llu/%llu in %.2fs)", \
 				(uint64_t)threads, \
 				(double)(sum) / duration.count() * 0.000001, \
-				sum, duration.count()); \
+				sum, full_sum, duration.count()); \
 		fflush(stderr); \
-		return duration.count(); \
+		CSV_VALUE(threads); \
+		CSV_VALUE((double)(sum) / duration.count() * 0.000001); \
+		CSV_VALUE(sum); \
+		CSV_VALUE(full_sum); \
+		CSV_VALUE(duration.count()); \
 		delete[] I; \
 		I = NULL; \
+		return duration.count(); \
 	} \
+	const char* title = __title; \
 	void print_header() {\
-		fprintf(stderr, "\n Benchmark: %s \n", __title); \
+		fprintf(stderr, "\n Benchmark: %s", __title); \
 		fflush(stderr); \
 	}\
 	const char* low_details = \
@@ -132,15 +174,14 @@ public: \
 	} \
 }
 
-
-#define CREATE_ANONYMUS_BENCHMARK_CLASS(__title,\
+#define CREATE_ANONYMUS_BENCHMARK_CLASS(__title, \
 		__batch_size, \
-		__shared_data_type,\
+		__shared_data_type, \
 		__task) \
 	CREATE_ANONYMUS_BENCHMARK_CLASS_WITH_LOCAL(__title, \
 			__batch_size, \
 			__shared_data_type, \
-			struct {}, \
+			struct {int a;}, \
 			{}, \
 			__task)
 
@@ -158,7 +199,6 @@ enum {
 		__details) \
 { \
 	__class benchmark; \
-	fprintf(stderr, "\n"); \
 	if(__details == __LOW_DETAILS) \
 		benchmark.print_low_details(); \
 	else if(__details==__TITLE_ONLY_DETAILS) \
@@ -166,6 +206,9 @@ enum {
 	else \
 		benchmark.print_high_details(); \
 	for(size_t threads=__min_thread; threads<=__max_thread; ++threads) { \
+		CSV_LINE(); \
+		CSV_LINE_ID(); \
+		CSV_VALUE(benchmark.title); \
 		{ \
 			auto& shared = benchmark.shared; \
 			__set_benchmark_data; \
@@ -174,7 +217,7 @@ enum {
 		benchmark.run(__test_duration, threads); \
 	} \
 }
-
+	
 #define CALL_BENCHMARK_FOR_THREADS_HIGH(__min_thread, \
 		__max_thread, \
 		__test_duration, \
@@ -221,7 +264,13 @@ enum {
 			__test_duration, \
 			__set_benchmark_data, \
 			__class, \
-			__LOW_DETAILS)
+			__TITLE_ONLY_DETAILS)
+/*
+			
+	printf("\n\n\n\n\n %s\n\n\n\n\n",\
+			__TO_STRING_MACRO_EXPRESSION((__class)) \
+			);
+			*/
 
 #endif
 

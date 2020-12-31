@@ -29,6 +29,9 @@
 #include <atomic>
 #include <mutex>
 #include <thread>
+#include <queue>
+
+#include <Debug.hpp>
 
 /*
  *  spsc - single producer single consumer
@@ -53,12 +56,14 @@ namespace concurrent {
 	};
 	
 	/*
-	 *  Multip-purpose for any type of object with empty constructor and
+	 *  Multi-purpose for any type of object with empty constructor and
 	 *  assignment operator
 	 */
 	template<typename T>
 	class spmc_queue {
 	public:
+		
+		static char* __name;
 		
 		spmc_queue(spmc_queue&&) = delete;
 		spmc_queue(const spmc_queue&) = delete;
@@ -66,16 +71,23 @@ namespace concurrent {
 		spmc_queue& operator =(spmc_queue&&) = delete;
 		
 		spmc_queue() {
-			__init_empty(128);
+			__name = (char*)__func__;
+			__init_empty(1024*1024);
 		}
 		
 		spmc_queue(uint64_t allocation_batch) {
+			__name = (char*)__func__;
 			__init_empty(allocation_batch);
 		}
 		
 		~spmc_queue() {
-			for(auto block : allocated_blocks)
-				delete[] block;
+			while(!allocated_blocks.empty()) {
+				delete[] allocated_blocks.front();
+				allocated_blocks.pop();
+			}
+//			fprintf(stderr,
+//					"\n Deallocated local-nodes %llu on destructor of %s",
+//					allocated, __name);
 		}
 		
 		inline void push(const T& value) {
@@ -102,6 +114,16 @@ namespace concurrent {
 			return false;
 		}
 		
+		//  safe to call without any concurrent calls
+		inline bool pop_unsafe(T& value) {
+			node_ptr* _first = first.load();
+			if(_first == last.load())
+				return false;
+			value = _first->value;
+			first = _first->__m_next;
+			return true;
+		}
+		
 		inline uint64_t capacity() const {
 			return allocated;
 		}
@@ -116,8 +138,10 @@ namespace concurrent {
 		}
 		
 		void clear_dealloc_single_threaded_unsafe() {
-			for(auto it : allocated_blocks)
-				delete[] it;
+			while(!allocated_blocks.empty()) {
+				delete[] allocated_blocks.front();
+				allocated_blocks.pop();
+			}
 			__init_empty(allocation_batch_size);
 		}
 		
@@ -128,7 +152,7 @@ namespace concurrent {
 			allocation_batch_size = allocation_batch;
 			size_t size;
 			node_ptr* block = create_new_empty_cycle(size);
-			allocated_blocks.emplace_back(block);
+			allocated_blocks.emplace(block);
 			first = block;
 			last = block;
 		}
@@ -148,10 +172,12 @@ namespace concurrent {
 		}
 		
 		atomic<node_ptr*> first, last;
-		std::vector<node_ptr*> allocated_blocks;
+		std::queue<node_ptr*> allocated_blocks;
 		uint64_t allocation_batch_size;
 		uint64_t allocated;
 	};
+	template<typename T>
+	char* spmc_queue<T>::__name = (char*)"spmc_queue<T>";
 	
 	
 	
@@ -171,6 +197,9 @@ namespace concurrent {
 		
 		template<typename T>
 		class mpsc_stack {
+		public:
+			
+			static char* __name;
 			
 			mpsc_stack(mpsc_stack&&) = delete;
 			mpsc_stack(const mpsc_stack&) = delete;
@@ -178,15 +207,19 @@ namespace concurrent {
 			mpsc_stack& operator =(mpsc_stack&&) = delete;
 			
 			mpsc_stack() {
+				__name = (char*)__func__;
 				first = NULL;
 			}
 			
 			~mpsc_stack() {
+				uint64_t C = 0;
 				while(first != NULL) {
 					T* node = first;
 					first = node->__m_next;
 					delete node;
+					++C;
 				}
+//				fprintf(stderr, "\n Deleted %llu on destructor of %s", C, __name);
 			}
 			
 			//	safe to call without concurrent pop
@@ -196,7 +229,7 @@ namespace concurrent {
 					if(value == NULL)
 						return NULL;
 					T* next = value->__m_next;
-					if(first.compare_exchange_weak(value, next)) {
+					if(first.compare_exchange_strong(value, next)) {
 						value->__m_next = NULL;
 						return value;
 					}
@@ -204,7 +237,7 @@ namespace concurrent {
 				return NULL;
 			}
 			
-			//	safe to call without concurrent push nor pop
+			//  safe to call without any concurrent calls
 			inline T* pop_unsafe() {
 				T* value = first;
 				if(value == NULL)
@@ -220,8 +253,9 @@ namespace concurrent {
 					T* value = first;
 					if(value == NULL)
 						return value;
-					if(first.compare_exchange_weak(value, NULL))
+					if(first.compare_exchange_strong(value, NULL)) {
 						return value;
+					}
 				}
 			}
 			
@@ -230,21 +264,27 @@ namespace concurrent {
 					return;
 				for(;;) {
 					new_node->__m_next = first;
-					if(first.compare_exchange_weak(new_node->__m_next, new_node))
+					if(first.compare_exchange_weak(new_node->__m_next,
+								new_node)) {
 						return;
+					}
 				}
 			}
 			
-			//	safe to call without concurrent push nor pop
+			//  safe to call without any concurrent calls
 			inline void push_unsafe(T* new_node) {
+				if(new_node == NULL)
+						return;
 				new_node->__m_next = first;
 				first = new_node;
 			}
 			
 			inline void push_all(T* _first) {
-				while(*_first) {
-					T* next = _first->next;
-					if(first.compare_exchange_strong(NULL, _first))
+				while(_first) {
+					T* next = _first->__m_next;
+					T* ___ignore_cmpxchg_dst = NULL;
+					if(first.compare_exchange_strong(___ignore_cmpxchg_dst,
+								_first))
 						break;
 					else
 						push(_first);
@@ -252,17 +292,19 @@ namespace concurrent {
 				}
 			}
 			
-			//	safe to call without concurrent push nor pop
+			//  safe to call without any concurrent calls
 			inline void push_all_unsafe(T* _first) {
 				if(_first == NULL)
 					return;
 				else if(first == NULL)
 					first = _first;
-				else do {
-					T* next = _first->__m_next;
-					push_unsafe(_first);
-					_first = next;
-				} while(_first);
+				else {
+					do {
+						T* next = _first->__m_next;
+						push_unsafe(_first);
+						_first = next;
+					} while(_first);
+				}
 			}
 			
 			inline void reverse() {
@@ -270,7 +312,7 @@ namespace concurrent {
 				push_all(all);
 			}
 			
-			//	safe to call without concurrent push nor pop
+			//  safe to call without any concurrent calls
 			inline void reverse_unsafe() {
 				T* all = pop_all();
 				push_all_unsafe(all);
@@ -282,11 +324,17 @@ namespace concurrent {
 			
 			atomic<T*> first;
 		};
+		template<typename T>
+		char* mpsc_stack<T>::__name = (char*)"mpsc_stack<T>";
+		
+		
 		
 		// uses std::mutex at pop
 		template<typename T>
 		class mpmc_stack {
 		public:
+			
+			static char* __name;
 			
 			mpmc_stack(mpmc_stack&&) = delete;
 			mpmc_stack(const mpmc_stack&) = delete;
@@ -294,9 +342,11 @@ namespace concurrent {
 			mpmc_stack& operator =(mpmc_stack&&) = delete;
 			
 			mpmc_stack() {
+				__name = (char*)__func__;
 			}
 			
 			~mpmc_stack() {
+//				fprintf(stderr, "\n Destructor of %s", __name);
 			}
 			
 			inline T* pop() {
@@ -306,7 +356,7 @@ namespace concurrent {
 						return NULL;
 					T* next = value->__m_next;
 					std::lock_guard<std::mutex> lock(mutex);
-					if(stack.first.compare_exchange_weak(value, next)) {
+					if(stack.first.compare_exchange_strong(value, next)) {
 						return value;
 					}
 				}
@@ -360,24 +410,52 @@ namespace concurrent {
 			mpsc_stack<T> stack;
 			std::mutex mutex;
 		};
+		template<typename T>
+		char* mpmc_stack<T>::__name = (char*)"mpmc_stack<T>";
+		
+		
 		
 		template<typename T>
 		class spmc_queue_node : public spmc_queue<T*> {
 		public:
+			
+			static char* __name;
 			
 			spmc_queue_node(spmc_queue_node&&) = delete;
 			spmc_queue_node(const spmc_queue_node&) = delete;
 			spmc_queue_node& operator =(const spmc_queue_node&) = delete;
 			spmc_queue_node& operator =(spmc_queue_node&&) = delete;
 			
-			spmc_queue_node() : spmc_queue<T*>() {}
+			spmc_queue_node() : spmc_queue<T*>() {
+				__name = (char*)__func__;
+			}
 			spmc_queue_node(uint64_t allocation_batch) :
-				spmc_queue<T*>(allocation_batch) {}
-			~spmc_queue_node() {}
+				spmc_queue<T*>(allocation_batch) {
+				__name = (char*)__func__;
+			}
+			~spmc_queue_node() {
+				uint64_t C=0;
+				for(;;) {
+					T* value;
+					if(spmc_queue<T*>::pop_unsafe(value))
+						delete value;
+					else
+						break;
+					++C;
+				}
+//				fprintf(stderr, "\n Deleted %llu on destructor of %s", C, __name);
+			}
 			
 			inline T* pop() {
 				T* value;
-				if(spmc_queue<T>::pop(value))
+				if(spmc_queue<T*>::pop(value))
+					return value;
+				return NULL;
+			}
+			
+			inline T* pop_unsafe() {
+				T* value;
+				if(spmc_queue<T*>::pop_unsafe(value))
 					return value;
 				return NULL;
 			}
@@ -387,26 +465,36 @@ namespace concurrent {
 					return;
 				do {
 					T* next = _first->__m_next;
-					push(_first);
+					spmc_queue<T*>::push(_first);
 					_first = next;
 				} while(_first);
 			}
 		};
+		template<typename T>
+		char* spmc_queue_node<T>::__name = (char*)"spmc_queue_node<T>";
+		
+		
 		
 		template<typename T>
 		class mpsc_queue {
 		public:
+			
+			static char* __name;
 			
 			mpsc_queue(mpsc_queue&&) = delete;
 			mpsc_queue(const mpsc_queue&) = delete;
 			mpsc_queue& operator =(const mpsc_queue&) = delete;
 			mpsc_queue& operator =(mpsc_queue&&) = delete;
 			
-			mpsc_queue() {}
-			~mpsc_queue() {}
+			mpsc_queue() {
+				__name = (char*)__func__;
+			}
+			~mpsc_queue() {
+//				fprintf(stderr, "\n Destructor of %s", __name);
+			}
 			
 			inline void push(T* value) {
-				producer.push();
+				producer.push(value);
 			}
 			
 			inline T* pop() {
@@ -422,21 +510,31 @@ namespace concurrent {
 			mpsc_stack<T> producer;
 			mpsc_stack<T> consumer;
 		};
+		template<typename T>
+		char* mpsc_queue<T>::__name = (char*)"mpsc_queue<T>";
+		
+		
 		
 		template<typename T>
 		class mpmc_stackqueue {
 		public:
+			
+			static char* __name;
 			
 			mpmc_stackqueue(mpmc_stackqueue&&) = delete;
 			mpmc_stackqueue(const mpmc_stackqueue&) = delete;
 			mpmc_stackqueue& operator =(const mpmc_stackqueue&) = delete;
 			mpmc_stackqueue& operator =(mpmc_stackqueue&&) = delete;
 			
-			mpmc_stackqueue() {}
-			~mpmc_stackqueue() {}
+			mpmc_stackqueue() {
+				__name = (char*)__func__;
+			}
+			~mpmc_stackqueue() {
+//				fprintf(stderr, "\n Destructor of %s", __name);
+			}
 			
 			inline void push(T* value) {
-				producer.push();
+				producer.push(value);
 			}
 			
 			inline T* pop() {
@@ -452,22 +550,31 @@ namespace concurrent {
 			mpmc_stack<T> producer;
 			mpmc_stack<T> consumer;
 		};
-		
-		//  Behaviour should be very close to queue
 		template<typename T>
-		class mpmc_queue_lock {
+		char* mpmc_stackqueue<T>::__name = (char*)"mpmc_stackqueue<T>";
+		
+		
+		
+		template<typename T>
+		class mpmc_stackqueue_lock {
 		public:
 			
-			mpmc_queue_lock(mpmc_queue_lock&&) = delete;
-			mpmc_queue_lock(const mpmc_queue_lock&) = delete;
-			mpmc_queue_lock& operator =(const mpmc_queue_lock&) = delete;
-			mpmc_queue_lock& operator =(mpmc_queue_lock&&) = delete;
+			inline static const char* __name = "mpmc_stackqueue_lock";
 			
-			mpmc_queue_lock() {}
-			~mpmc_queue_lock() {}
+			mpmc_stackqueue_lock(mpmc_stackqueue_lock&&) = delete;
+			mpmc_stackqueue_lock(const mpmc_stackqueue_lock&) = delete;
+			mpmc_stackqueue_lock& operator =(const mpmc_stackqueue_lock&)
+				= delete;
+			mpmc_stackqueue_lock& operator =(mpmc_stackqueue_lock&&)
+				= delete;
+			
+			mpmc_stackqueue_lock() {}
+			~mpmc_stackqueue_lock() {
+//				fprintf(stderr, "\n Destructor of %s", __name);
+			}
 			
 			inline void push(T* value) {
-				producer.push();
+				producer.push(value);
 			}
 			
 			inline T* pop() {
@@ -476,9 +583,17 @@ namespace concurrent {
 					if(value)
 						return value;
 					if(mutex.try_lock()) {
-						consumer.push_all(producer.pop_all());
+						value = consumer.pop();
+						if(value) {
+							mutex.unlock();
+							return value;
+						}
+						consumer.push_all_unsafe(producer.pop_all());
 						mutex.unlock();
-						return consumer.pop();
+						value = consumer.pop();
+						if(value)
+							value->__m_next = NULL;
+						return value;
 					}
 				}
 				return NULL;
@@ -487,16 +602,73 @@ namespace concurrent {
 		private:
 			
 			mpmc_stack<T> producer;
-			spmc_queue<T> consumer;
+			mpmc_stack<T> consumer;
 			std::mutex mutex;
 		};
 		
 		
-		template<typename T,
-			template<typename T2>
-				typename container_type = mpmc_stack>
+		
+		//  Behaviour should be very close to queue
+		template<typename T>
+		class mpmc_queue_lock {
+		public:
+			
+			static char* __name;
+			
+			mpmc_queue_lock(mpmc_queue_lock&&) = delete;
+			mpmc_queue_lock(const mpmc_queue_lock&) = delete;
+			mpmc_queue_lock& operator =(const mpmc_queue_lock&) = delete;
+			mpmc_queue_lock& operator =(mpmc_queue_lock&&) = delete;
+			
+			mpmc_queue_lock() {
+				__name = (char*)__func__;
+			}
+			~mpmc_queue_lock() {
+//				fprintf(stderr, "\n Destructor of %s", __name);
+			}
+			
+			inline void push(T* value) {
+				producer.push(value);
+			}
+			
+			inline T* pop() {
+				for(;;) {
+					T* value = consumer.pop();
+					if(value)
+						return value;
+					if(mutex.try_lock()) {
+						value = consumer.pop();
+						if(value) {
+							mutex.unlock();
+							return value;
+						}
+						consumer.push_all(producer.pop_all());
+						mutex.unlock();
+						value = consumer.pop();
+						if(value)
+							value->__m_next = NULL;
+						return value;
+					}
+				}
+				return NULL;
+			}
+			
+		private:
+			
+			mpmc_stack<T> producer;
+			spmc_queue_node<T> consumer;
+			std::mutex mutex;
+		};
+		template<typename T>
+		char* mpmc_queue_lock<T>::__name = (char*)"mpmc_queue_lock<T>";
+		
+		
+		
+		template<typename T, typename container_type = mpmc_stack<T>>
 		class pool {
 		public:
+			
+			inline static const char* __name = "concurrent::ptr::pool";
 			
 			pool(pool&&) = delete;
 			pool(const pool&) = delete;
@@ -509,13 +681,16 @@ namespace concurrent {
 				allocate(count, args...);
 			}
 			~pool() {
+				uint64_t C=0;
 				for(;;) {
 					T* ptr = heap.pop();
 					if(ptr)
 						delete ptr;
 					else
 						break;
+					++C;
 				}
+//				fprintf(stderr, "\n Deleted %llu on destructor of %s", C, __name);
 			}
 			
 			template<typename... _args>
@@ -539,128 +714,297 @@ namespace concurrent {
 			
 		private:
 			
-			container_type<T> heap;
+			container_type heap;
+		};
+	};
+	
+	namespace linear {
+		
+		template<typename T>
+		class stack {
+		public:
+			inline static const char* __name = "concurrent::linear::stack";
+			
+			stack(stack&& other) {
+				first = other.first;
+				size = other.size;
+			}
+			stack(const stack&) = delete;
+			stack& operator =(const stack&) = delete;
+			stack& operator =(stack&&) = delete;
+			
+			stack() {
+				first = NULL;
+				size = 0;
+			}
+			
+			~stack() {
+				while(first != NULL) {
+					T* node = first;
+					first = node->__m_next;
+					delete node;
+				}
+			}
+			
+			inline T* pop() {
+				T* value = first;
+				if(value == NULL)
+					return NULL;
+				--size;
+				first = value->__m_next;
+				value->__m_next = NULL;
+				return value;
+			}
+			
+			inline T* pop_all() {
+				T* value = first;
+				size = 0;
+				first = NULL;
+				return value;
+			}
+			
+			inline void push(T* new_node) {
+				if(new_node == NULL)
+						return;
+				++size;
+				new_node->__m_next = first;
+				first = new_node;
+			}
+			
+			inline void push_all(T* _first) {
+				do {
+					T* next = _first->__m_next;
+					push(_first);
+					_first = next;
+				} while(_first);
+			}
+			
+			inline void push_all(T* _first, size_t count) {
+				if(_first == NULL)
+					return;
+				else if(first == NULL) {
+					first = _first;
+					size = count;
+				} else
+					push_all(_first);
+			}
+			
+			inline void reverse() {
+				size_t s = size;
+				T* all = pop_all();
+				push_all(all, size);
+			}
+			
+			inline void swap(stack& o) {
+				std::swap(size, o.size);
+				std::swap(first, o.first);
+			}
+			
+			size_t size;
+			
+		private:
+			
+			T* first;
 		};
 	};
 };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/*
 template<typename T>
-class Pool {
+class single_pool {
 public:
 	
-	class Node : public T {
-	public:
-		template<typename... _args>
-		Node(_args... args) :
-			T(args...){
-			next = NULL;
-		}
-		
-		Node* next;
-	};
+	single_pool(const single_pool<T>&) {}
+	single_pool(single_pool<T>&& o) : stack(o.stack) {}
+	single_pool() {}
+	~single_pool() {}
 	
-	
-	Pool() {
-		heap = NULL;
-	}
-	
-	~Pool() {
-		while(heap != NULL) {
-			Node* node = heap;
-			heap = node->next;
-			delete node;
+	inline void resize(size_t n) {
+		if(stack.size > n) {
+			for(size_t i=n; i<stack.size; ++i)
+				delete stack.pop();
+		} else if(stack.size < n) {
+			allocate(n-stack.size);
 		}
 	}
 	
 	template<typename... _args>
-	void Allocate(size_t amountOfObjects, _args... args) {
-		for(size_t i=0; i<amountOfObjects; ++i)
-			Release(new Node(args...));
+	inline void allocate(size_t n, _args... args) {
+		for(size_t i=0; i<n; ++i)
+			stack.push(new T(args...));
 	}
 	
-	template<typename... _args>
-	T* Pop(_args... args) {
-		T* node = TryPop();
-		if(node != NULL)
-			return node;
-		return new Node(args...);
+	inline T* get() {
+		if(stack.size > 0)
+			return stack.pop();
+		return new T;
 	}
 	
-	T* TryPop() {
-		for(;;) {
-			Node* tempHeap = heap;
-			if(tempHeap == NULL)
-				return NULL;
-			Node* next = tempHeap->next;
-			std::lock_guard<std::mutex> lock(mutex);
-			if(heap.compare_exchange_weak(tempHeap, next)) {
-				return tempHeap;
+	inline void release(T* ptr) {
+		if(ptr) {
+			stack.push(ptr);
+		}
+	}
+	
+	static inline void swap(single_pool& a, single_pool& b) {
+		a.stack.swap(b.stack);
+	}
+	
+	inline size_t size() const {
+		return stack.size;
+	}
+	
+	concurrent::linear::stack<T> stack;
+};
+
+class time_printer {
+public:
+	
+	time_printer(const char* str) : str(str) {
+		start = std::chrono::high_resolution_clock::now();
+	}
+	
+	~time_printer() {
+		end = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double> duration =
+			std::chrono::duration<double>(end - start);
+		fprintf(stderr, "\n %s took: %.2fs", str, duration.count());
+		fflush(stderr);
+	}
+	
+	const char* str;
+	std::chrono::high_resolution_clock::time_point start, end;
+};
+
+#include <fstream>
+
+template<typename T>
+class single_pool_multi_thread_equalizer {
+public:
+	
+	inline T* get() {
+		static uint64_t Cc = 0;
+		++Cc;
+		if(Cc & 0xffff == 0xffff)
+			sort();
+		for(auto& p : pools) {
+			if(p.size() > 0)
+				return p.get();
+		}
+		return new T;
+	}
+	
+	inline void release(T* ptr) {
+		if(pools.size() == 0)
+			pools.resize(1);
+		static uint64_t Cc = 0;
+		++Cc;
+		if(Cc & 0xffff == 0xffff)
+			sort();
+		pools.back().release(ptr);
+	}
+	
+	single_pool_multi_thread_equalizer() {
+		row_id = 0;
+		csv.open((std::string("log\\pool_size-")+std::to_string(time(NULL))+
+			".csv").c_str());
+		csv << "\npool capacity\n\n";
+		csv << "id,";
+		for(int i=0; i<30; ++i) {
+			csv << "thread " << i << ",";
+		}
+	}
+	
+	std::ofstream csv;
+	
+	void sort() {
+		for(int i=1; i<pools.size(); ++i) {
+			bool end = true;
+			for(int j=pools.size()-1; j>0; --j) {
+				if(pools[j-1].size() < pools[j].size()) {
+					single_pool<T>::swap(pools[j-1], pools[j]);
+					end = false;
+				}
 			}
+			if(end)
+				break;
 		}
-		return NULL;
 	}
 	
-	void Release(T* ptr) {
-		if(ptr == NULL)
-			return;
-		Node* node = (Node*)ptr;
-		for(;;) {
-			node->next = heap;
-			if(heap.compare_exchange_weak(node->next, node)) {
+	void equalize(size_t threads, size_t amount_per_thread) {
+//		time_printer printer1("Equalizing pools");
+		{
+			if(threads==0 || amount_per_thread==0) {
+				pools.clear();
 				return;
 			}
+			
+			sort();
+			single_pool<T> buffer;
+			for(size_t i=threads; i<pools.size(); ++i) {
+				size_t size = pools[i].size();
+				buffer.stack.push_all(pools[i].stack.pop_all(), size);
+			}
+			
+			uint64_t sum = 0;
+			for(auto& pool : pools) {
+				sum += pool.size();
+			}
+			uint64_t sum_threads = sum / threads;
+			if(sum_threads < amount_per_thread*3 &&
+					sum_threads > amount_per_thread) {
+				amount_per_thread = sum_threads;
+			} else if(sum_threads >= amount_per_thread*3) {
+				amount_per_thread = sum_threads;
+			}
+			
+			pools.resize(threads);
+			
+			for(int i=0; i<threads*threads; ++i) {
+				sort();
+				while(true) {
+					if(pools.front().size() > amount_per_thread) {
+						if(pools.back().size() < amount_per_thread) {
+							pools.back().release(pools.front().get());
+						} else
+							break;
+					} else
+						break;
+				}
+			}
+			
+			for(auto& pool : pools) {
+				while(pool.size() < amount_per_thread)
+					pool.release(buffer.get());
+			}
+			
+			for(auto& e : pools) {
+				e.resize(amount_per_thread);
+			}
 		}
 	}
 	
-private:
+	single_pool<T>* get_pools(size_t threads, size_t amount_per_thread) {
+		print_stats();
+		equalize(threads, amount_per_thread);
+		return &(pools.front());
+	}
 	
-	std::mutex mutex;
-	atomic<Node*> heap;
+	uint64_t row_id;
+	void print_stats() {
+		/*
+		fprintf(stderr, "\n pools capacity:");
+		for(auto& e : pools) {
+			fprintf(stderr, "    %llu", e.size());
+		}
+		*/
+		csv << "\n" << row_id << ","; ++row_id;
+		for(auto& e : pools) {
+			csv << e.size() << ",";
+		}
+	}
+	
+	std::vector<single_pool<T>> pools;
 };
-*/
+
 #endif
 
