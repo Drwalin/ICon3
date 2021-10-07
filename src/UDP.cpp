@@ -57,12 +57,7 @@ namespace udp {
 		if(ref)
 			this->ptr = ptr;
 		else
-			this->ptr = new boost::asio::ip::udp::endpoint(*);
-	}
-	
-	Endpoint::Endpoint() {
-		ref = false;
-		ptr = new boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), 0);
+			this->ptr = new boost::asio::ip::udp::endpoint(*ptr);
 	}
 	
 	Endpoint::Endpoint(const GlobalEndpoint& endpoint) {

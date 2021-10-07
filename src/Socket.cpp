@@ -27,7 +27,7 @@
 
 #include <thread>
 
-namespace asio{
+namespace asio {
 	
 	template<typename T>
 	Socket<T>::Socket() {

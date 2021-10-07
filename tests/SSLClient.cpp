@@ -4,10 +4,7 @@
 #include <ctime>
 #include <cstdlib>
 
-#include <windows.h>
-#include <conio.h>
-
-#include <SSL.hpp>
+#include "../src/SSL.hpp"
 
 uint16_t Random(uint64_t& gen, uint64_t i) {
 	gen = (gen<<4) ^ (gen>>7) ^ i;
@@ -38,6 +35,8 @@ std::vector<uint8_t> RandomData(uint64_t c) {
 
 int main() {
 	
+	printf("\n Running!\n");
+	
 	srand(time(NULL));
 	
 	std::vector<uint8_t> uberMessageBuffer;
@@ -46,7 +45,7 @@ int main() {
 		CreateOptimalBuffer(uberMessage, uberMessageBuffer);
 	}
 	
-	printf("\n uber message created in %.2fs!", (float)(clock())*0.001f);
+	printf("\n uber message created in %.2fs!", (float)(clock())/CLOCKS_PER_SEC);
 	
 	ssl::Socket socket;
 	Endpoint endpoint("127.0.0.1:27000");
@@ -111,7 +110,9 @@ int main() {
 	}
 	
 	printf("\n Done!");
-	getch();
+	int i;
+	scanf("%i", &i);
+	
 	return 0;
 }
 

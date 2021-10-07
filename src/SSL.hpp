@@ -55,7 +55,7 @@ namespace ssl {
 	using ServerBase = asio::Server<Socket>;
 	
 	class Server : public asio::Server<Socket> {
-	public:h
+	public:
 		
 		Server();
 		virtual ~Server() override;

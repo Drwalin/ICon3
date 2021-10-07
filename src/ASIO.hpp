@@ -34,6 +34,7 @@ void IoContextPollOne();
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ip/udp.hpp>
 #include <boost/asio/ssl.hpp>
+#include <boost/pool/pool_alloc.hpp>
 
 extern "C" boost::asio::io_context *ioContext;
 boost::asio::io_context& IoContext();
@@ -64,7 +65,73 @@ namespace boost {
 
 #endif
 
-#include <Debug.hpp>
+#include "Debug.hpp"
+
+class allocator {
+public:
+	static void* _allocate(size_t bytes);
+	static void* _allocate(size_t bytes, void *hint);
+	static void _deallocate(void *ptr);
+	static void _deallocate(void *ptr, size_t bytes);
+};
+
+template<typename T>
+class allocator_any : allocator {
+public:
+	typedef T value_type;
+	typedef size_t size_type;
+	typedef T* pointer;
+	typedef const T* const_pointer;
+
+	std::allocator<T> a;
+	
+	allocator_any() {
+		fprintf(stderr, "Hello allocator!\n");
+	}
+	allocator_any(const allocator_any &a) {}
+	template <class U>                    
+	allocator_any(const allocator_any<U> &a) {}
+	~allocator_any() {}
+
+	pointer allocate(size_type n, const void *hint) {
+		fprintf(stderr, "Alloc %lu bytes.\n", n*sizeof(T));
+//		return a.allocate(n, hint);
+		return (pointer)allocator::_allocate(n*sizeof(T), (void*)hint);
+	}
+
+	pointer allocate(size_type n) {
+		fprintf(stderr, "Alloc %lu bytes.\n", n*sizeof(T));
+//		return a.allocate(n);
+//		return new T[n];
+		return (pointer)allocator::_allocate(n*sizeof(T));
+	}
+
+	void deallocate(pointer p, size_type n) {
+		fprintf(stderr, "Dealloc %lu bytes (%p).\n", n*sizeof(T), p);
+//		a.deallocate(p, n);
+		if(p)
+//		delete[] p;
+		allocator::_deallocate((void*)p, sizeof(T)*n);
+	}
+	
+	/*
+	void deallocate(pointer p) {
+		fprintf(stderr, "Dealloc some bytes (%p).\n", p);
+		_deallocate((void*)p);
+	}
+	*/
+	
+	template<class U>
+	bool operator == (allocator_any<U> const&) noexcept {
+		return true;
+	}
+	template<class U>
+	bool operator != (allocator_any<U> const& y) noexcept {
+		return !(*this == y);
+	}
+};
+
+//#define allocator_any std::allocator
 
 class BasicSocket {
 public:
@@ -137,41 +204,7 @@ public:
 	void Swap(Message& other);
 	
 	std::string title;
-	std::vector<uint8_t> data;
-};
-
-class FastMessage {
-public:
-	
-	const static uint64_t maxFastMessageSize = 64*1024;
-	
-	FastMessage();
-	~FastMessage();
-	
-	bool SetMessageBody(const char* str, uint64_t strBytes, void* data, uint64_t dataBytes);
-	bool SetMessageBody(const char* str, void* data, uint64_t dataBytes);
-	bool SetMessageBody(const std::string& str, const void* data, uint64_t dataBytes);
-	bool SetMessageBody(const std::string& str, const std::vector<uint8_t>& data);
-	bool SetMessageBody(const char* str, const std::vector<uint8_t>& data);
-	
-	bool Decode(const void* data, uint64_t dataBytes);
-	bool Decode(const std::vector<uint8_t>& data);
-	
-	void StartWritingBuffer();
-	bool PrepareForDecoding(const void* data, uint64_t dataBytes);
-	void DecodeInternal();
-	void Decode();
-	
-	void SetEmpty();
-	
-	
-	uint64_t titleLength;
-	uint64_t dataLength;
-	uint64_t titleAndDataLength;
-	uint64_t wholeMessageLength;
-	char* title;
-	char* data;
-	uint8_t buffer[maxFastMessageSize+1];
+	std::vector<uint8_t, allocator_any<uint8_t>> data;
 };
 
 template<typename T1, typename T2>

@@ -5,12 +5,10 @@
 #include <cstring>
 #include <cstdio>
 
-#include <windows.h>
-#include <conio.h>
+#include "../src/SSL.hpp"
 
-#include <SSL.hpp>
-
-bool CheckChecksum(const std::vector<uint8_t>& buffer) {
+template<typename T>
+bool CheckChecksum(const T& buffer) {
 	uint8_t checksum=0;
 	for(uint64_t i=0; i+2<buffer.size(); ++i) {
 		checksum ^= buffer[i];
@@ -74,15 +72,19 @@ int main() {
 		}
 		
 		int beg = clock();
+		long long cooldown = clock();
 		while(true) {
 			uint64_t recvd=0, req=0;
 			socket->GetMessageCompletition(recvd, req);
+			if((clock()-cooldown)*4/CLOCKS_PER_SEC > 1) {
+				cooldown = clock();
 			printf("\n received: %2.2f%% = ",
 					(float)(recvd+1)*100.0f/(float)(req+1));
 			printf(" %llu / %llu bytes", recvd, req);
-			printf("   speed = %.2f MiB/s", (float)(recvd)*1000.0f/1024.0f/1024.0f/(float)(clock()-beg));
+			printf("   speed = %.2f MiB/s", (float)(recvd)*(CLOCKS_PER_SEC)/1024.0f/1024.0f/(float)(clock()-beg));
+			}
 			if(socket->TryPopMessage(msg, 3000)) {
-				printf("\n   speed = %.2f MiB/s", (float)(msg.title.size()+msg.data.size())*1000.0f/1024.0f/1024.0f/(float)(clock()-beg));
+				printf("\n   speed = %.2f MiB/s", (float)(msg.title.size()+msg.data.size())*(CLOCKS_PER_SEC)/1024.0f/1024.0f/(float)(clock()-beg));
 				printf("\n received: %s", msg.title.c_str());
 				printf("\n checksum: %s", CheckChecksum(msg.data)?"true":"false");
 				break;
@@ -97,7 +99,8 @@ int main() {
 	printf("\n Done!");
 	server.Close();
 	
-	getch();
+	int i;
+	scanf("%i", &i);
 	
 	return 0;
 }
