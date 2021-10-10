@@ -40,7 +40,6 @@ namespace asio {
 		Close();
 	}
 	
-	
 	template<typename T>
 	void Socket<T>::Close() {
 		endpoint = Endpoint();

@@ -67,71 +67,7 @@ namespace boost {
 
 #include "Debug.hpp"
 
-class allocator {
-public:
-	static void* _allocate(size_t bytes);
-	static void* _allocate(size_t bytes, void *hint);
-	static void _deallocate(void *ptr);
-	static void _deallocate(void *ptr, size_t bytes);
-};
-
-template<typename T>
-class allocator_any : allocator {
-public:
-	typedef T value_type;
-	typedef size_t size_type;
-	typedef T* pointer;
-	typedef const T* const_pointer;
-
-	std::allocator<T> a;
-	
-	allocator_any() {
-		fprintf(stderr, "Hello allocator!\n");
-	}
-	allocator_any(const allocator_any &a) {}
-	template <class U>                    
-	allocator_any(const allocator_any<U> &a) {}
-	~allocator_any() {}
-
-	pointer allocate(size_type n, const void *hint) {
-		fprintf(stderr, "Alloc %lu bytes.\n", n*sizeof(T));
-//		return a.allocate(n, hint);
-		return (pointer)allocator::_allocate(n*sizeof(T), (void*)hint);
-	}
-
-	pointer allocate(size_type n) {
-		fprintf(stderr, "Alloc %lu bytes.\n", n*sizeof(T));
-//		return a.allocate(n);
-//		return new T[n];
-		return (pointer)allocator::_allocate(n*sizeof(T));
-	}
-
-	void deallocate(pointer p, size_type n) {
-		fprintf(stderr, "Dealloc %lu bytes (%p).\n", n*sizeof(T), p);
-//		a.deallocate(p, n);
-		if(p)
-//		delete[] p;
-		allocator::_deallocate((void*)p, sizeof(T)*n);
-	}
-	
-	/*
-	void deallocate(pointer p) {
-		fprintf(stderr, "Dealloc some bytes (%p).\n", p);
-		_deallocate((void*)p);
-	}
-	*/
-	
-	template<class U>
-	bool operator == (allocator_any<U> const&) noexcept {
-		return true;
-	}
-	template<class U>
-	bool operator != (allocator_any<U> const& y) noexcept {
-		return !(*this == y);
-	}
-};
-
-//#define allocator_any std::allocator
+#include "Allocator.hpp"
 
 class BasicSocket {
 public:

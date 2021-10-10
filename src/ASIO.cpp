@@ -22,27 +22,6 @@
 
 #include "ASIO.hpp"
 
-
-using boost_allocator = boost::pool_allocator<uint8_t>;
-
-void* allocator::_allocate(size_t bytes, void *hint) {
-	return boost_allocator::allocate(bytes, (uint8_t*)hint);
-}
-
-void* allocator::_allocate(size_t bytes) {
-	return boost_allocator::allocate(bytes);
-}
-
-void allocator::_deallocate(void *ptr, size_t bytes) {
-	if(ptr)
-		boost_allocator::deallocate((uint8_t*)ptr, bytes);
-}
-
-void allocator::_deallocate(void *ptr) {
-	if(ptr)
-		boost_allocator::deallocate((uint8_t*)ptr, 0);
-}
-
 boost::asio::io_context *ioContext = NULL;
 boost::asio::io_context& IoContext() {
 	if(ioContext == NULL)
