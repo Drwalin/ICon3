@@ -1,6 +1,6 @@
 /*
  *  Concurrent queue, stack, stackqueue and object pool.
- *  Copyright (C) 2020 Marek Zalewski aka Drwalin
+ *  Copyright (C) 2020-2021 Marek Zalewski aka Drwalin
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@
 #include <thread>
 #include <queue>
 
-#include <Debug.hpp>
+#include "Debug.hpp"
 
 /*
  *  spsc - single producer single consumer

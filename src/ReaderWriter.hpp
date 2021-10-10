@@ -1,6 +1,6 @@
 /*
  *  This file is part of ICon3. Please see README for details.
- *  Copyright (C) 2020 Marek Zalewski aka Drwalin
+ *  Copyright (C) 2020-2021 Marek Zalewski aka Drwalin
  *
  *  ICon3 is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -84,29 +84,26 @@ namespace ReaderWriter {
 	enum Type {
 		_uint7        = 0x00,  // 0x00:0x7F == 0x00:0x7F : [0x80]
 		_string_short = 0x80,  // 0x80:0xBF -> 0x00:0x3F : [0x40]
-		_map_short    = 0xC0,  // 0xC0:0xCF -> 0x00:0x0F : [0x10]
-		_array_short  = 0xD0,  // 0xD0:0xEC -> 0x00:0x1C : [0x1C]
+		_array_short  = 0xC0,  // 0xC0:0xDF -> 0x00:0x1F : [0x20]
+		_map_short    = 0xE0,  // 0xE0:0xEF -> 0x00:0x0F : [0x10]
 		
-		_one_type_types = 0xED,
+		_one_type_types = 0xF0,
 		
-		_array_types_begin = 0xED,
+		_array_types_begin = 0xF0,
 		
-		_string_long  = 0xED,  // [ int size, uint8[size+0x40]      ]
-		_array_long   = 0xEE,  // [ int size, any[size+0x10]        ]
-		_map_long     = 0xEF,  // [ int size, {any ,any}[size+0x10] ]
+		_string_long  = 0xF0,  // [ int size, uint8[size+0x40]      ]
+		_array_long   = 0xF1,  // [ int size, any[size+0x1F]        ]
+		_map_long     = 0xF2,  // [ int size, {any ,any}[size+0x10] ]
 
-		_array_uint16  = 0xF0,  // [ int size, uint16[size]      ]
-		_array_uint32  = 0xF1,  // [ int size, uint32[size]      ]
-		_array_uint64  = 0xF2,  // [ int size, uint64[size]      ]
-		_array_bool    = 0xF3,  // [ int size, uint8[(size+7)/8] ]
-		_array_float   = 0xF4,  // [ int size, float[size+0x0C]  ]
+		_array_uint16  = 0xF3,  // [ int size, uint16[size]      ]
+		_array_uint32  = 0xF4,  // [ int size, uint32[size]      ]
+		_array_uint64  = 0xF5,  // [ int size, uint64[size]      ]
 		
-		_array_types_end = 0xF4,
+		_array_types_end = 0xF5,
 		
-		_true    = 0xF5,
-		_false   = 0xF6,
-		_real    = 0xF7,  // [ int exponent, int mantissa ]
-		_uint8   = 0xF8,
+		_true    = 0xF6,
+		_false   = 0xF7,
+		_real    = 0xF8,  // [ int exponent, int mantissa ]
 		_uint16  = 0xF9,
 		_uint32  = 0xFA,
 		_uint64  = 0xFB,
@@ -118,8 +115,8 @@ namespace ReaderWriter {
 	
 	enum Sizes {
 		_string_short_size = 0x40,
-		_map_short_size = 0x10,
-		_array_short_size = 0x1C,
+		_array_short_size  = 0x20,
+		_map_short_size    = 0x10,
 		
 		_uint7_max = 0x7F,
 	};
@@ -158,9 +155,6 @@ namespace ReaderWriter {
 			uint8_t v = *buffer;
 			size_t mod;
 			switch(v) {
-				case _uint8:
-					value = *(uint8_t*)(buffer+1)+0x80;
-					mod = 2;
 				case _uint16:
 					value = endian::ReadBigEndiand<uint16_t>(buffer+1)+0x80;
 					mod = 3;
@@ -347,10 +341,10 @@ namespace ReaderWriter {
 		uint8_t v = *buffer;
 		if(v >= _one_type_types)
 			return (Type)v;
-		else if(v >= _array_short)
-			return _array_short;
 		else if(v >= _map_short)
 			return _map_short;
+		else if(v >= _array_short)
+			return _array_short;
 		else if(v >= _string_short)
 			return _string_short;
 		else
@@ -383,10 +377,10 @@ namespace ReaderWriter {
 			}
 		} else {
 			buffer++;
-			if(v >= _array_short) {
-				type = _array_short;
-			} else if(v >= _map_short) {
+			if(v >= _map_short) {
 				type = _map_short;
+			} else if(v >= _array_short) {
+				type = _array_short;
 			} else if(v >= _string_short) {
 				type = _string_short;
 			} else {
@@ -443,10 +437,7 @@ namespace ReaderWriter {
 					buffer.emplace_back(value + _uint7);
 				} else {
 					value -= _uint7_max+1;
-					if(value < 0x100) {
-						buffer.emplace_back(_uint8);
-						buffer.emplace_back(value);
-					} else if(value < 0x10000) {
+					if(value < 0x10000) {
 						buffer.emplace_back(_uint16);
 						buffer.resize(buffer.size()+2);
 						endian::WriteBigEndiand<uint16_t>(value,

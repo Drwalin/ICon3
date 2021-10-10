@@ -1,6 +1,6 @@
 /*
  *  Benchmarking tool for multi-threaded tasks.
- *  Copyright (C) 2020 Marek Zalewski aka Drwalin
+ *  Copyright (C) 2020-2021 Marek Zalewski aka Drwalin
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -26,9 +26,9 @@
 #include <atomic>
 #include <chrono>
 
-#include <Concurrent.hpp>
+#include "Concurrent.hpp"
 
-#include <Debug.hpp>
+#include "Debug.hpp"
 
 #ifdef USE_CSV_OUTPUT
 # include <fstream>

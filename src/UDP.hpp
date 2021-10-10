@@ -1,6 +1,6 @@
 /*
  *  This file is part of ICon3. Please see README for details.
- *  Copyright (C) 2020 Marek Zalewski aka Drwalin
+ *  Copyright (C) 2020-2021 Marek Zalewski aka Drwalin
  *
  *  ICon3 is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
