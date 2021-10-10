@@ -25,6 +25,7 @@
 #include <vector>
 #include <bit>
 #include <string>
+#include <span>
 
 #include "Allocator.hpp"
 
@@ -78,84 +79,74 @@ namespace endian {
 		}
 }
 
-/*
- * Types:
- *   array_short
- *   array_long
- *   string_short
- *   string_long
- *   object_small
- *   object_big
- *   array_typed:
- *     uint8
- *     uint16
- *     uint32
- *     uint64
- *     bool
- *     float
- *   uint_uber_short <1B
- *   int8
- *   int16
- *   int32
- *   int64
- *   uint8
- *   uint16
- *   uint32
- *   uint64
- *   true
- *   false
- *   float // [ int(exponent), int(mantissa) ]
- */
-
 namespace ReaderWriter {
 	// uint8[] == int8[] = char[] = string
 	enum Type {
-		_null    = 0x00,
-		_true    = 0x01,
-		_false   = 0x02,
-		_real    = 0x03, // [ int exponent, int mantissa ]
-		_uint8   = 0x04,
-		_uint16  = 0x05,
-		_uint32  = 0x06,
-		_uint64  = 0x07,
-		_sint8   = 0x08,
-		_sint16  = 0x09,
-		_sint32  = 0x0A,
-		_sint64  = 0x0B,
+		_uint7        = 0x00,  // 0x00:0x7F == 0x00:0x7F : [0x80]
+		_string_short = 0x80,  // 0x80:0xBF -> 0x00:0x3F : [0x40]
+		_map_short    = 0xC0,  // 0xC0:0xCF -> 0x00:0x0F : [0x10]
+		_array_short  = 0xD0,  // 0xD0:0xEC -> 0x00:0x1C : [0x1C]
+		
+		_one_type_types = 0xED,
+		
+		_array_types_begin = 0xED,
+		
+		_string_long  = 0xED,  // [ int size, uint8[size+0x40]      ]
+		_array_long   = 0xEE,  // [ int size, any[size+0x10]        ]
+		_map_long     = 0xEF,  // [ int size, {any ,any}[size+0x10] ]
 
-		_array_long   = 0x0C,  // [ int size, any[size+0x10]        ]
-		_object_long  = 0x0D,  // [ int size, {any ,any}[size+0x10] ]
-		_string_long  = 0x0E,  // [ int size, uint8[size+0x40]      ]
-
-		_array_uint16  = 0x0F,  // [ int size, uint16[size]      ]
-		_array_uint32  = 0x10,  // [ int size, uint32[size]      ]
-		_array_uint64  = 0x11,  // [ int size, uint64[size]      ]
-		_array_bool    = 0x12,  // [ int size, uint8[(size+7)/8] ]
-		_array_float   = 0x13,  // [ int size, float[size+0x0C]  ]
-
-		_array_float_short = 0x14,  // 0x14:0x1F -> 0x01:0x0C : [0x0C]
-		_array_short       = 0x20,  // 0x20:0x2F -> 0x01:0x10 : [0x10]
-		_object_short      = 0x30,  // 0x30:0x3F -> 0x01:0x10 : [0x10]
-		_string_short      = 0x60,  // 0x40:0x7F -> 0x01:0x40 : [0x40]
-		_uint7             = 0x80,  // 0x80:0xFF =  0x01:0x80 : [0x80]
+		_array_uint16  = 0xF0,  // [ int size, uint16[size]      ]
+		_array_uint32  = 0xF1,  // [ int size, uint32[size]      ]
+		_array_uint64  = 0xF2,  // [ int size, uint64[size]      ]
+		_array_bool    = 0xF3,  // [ int size, uint8[(size+7)/8] ]
+		_array_float   = 0xF4,  // [ int size, float[size+0x0C]  ]
+		
+		_array_types_end = 0xF4,
+		
+		_true    = 0xF5,
+		_false   = 0xF6,
+		_real    = 0xF7,  // [ int exponent, int mantissa ]
+		_uint8   = 0xF8,
+		_uint16  = 0xF9,
+		_uint32  = 0xFA,
+		_uint64  = 0xFB,
+		_sint8   = 0xFC,
+		_sint16  = 0xFD,
+		_sint32  = 0xFE,
+		_sint64  = 0xFF,
+	};
+	
+	enum Sizes {
+		_string_short_size = 0x40,
+		_map_short_size = 0x10,
+		_array_short_size = 0x1C,
+		
+		_uint7_max = 0x7F,
 	};
 
 
 
 	inline Type GetType(const uint8_t* buffer);
 
-	inline const uint8_t* ReadTypeSize(Type& type, uint64_t* size,
+	const uint8_t* ReadTypeAndSize(Type& type, uint64_t& size,
 			const uint8_t* buffer, const uint8_t* end);
 
 	template<typename T>
 		inline const uint8_t* Read(T& value, const uint8_t* buffer, const uint8_t* end);
 
+	inline const uint8_t* ReadString(char**const str, size_t& size,
+			const uint8_t* buffer, const uint8_t* end);
+
+	
+	inline void InitArray(Type type, uint64_t elements,
+			std::vector<uint8_t, allocator_any<uint8_t>>& buffer);
+	
+	inline void InitMap(uint64_t elements,
+			std::vector<uint8_t, allocator_any<uint8_t>>& buffer);
+	
 	template<typename T>
 		inline void Write(T value,
 				std::vector<uint8_t, allocator_any<uint8_t>>& buffer);
-	
-	inline const uint8_t* ReadString(char**const str, size_t& size,
-				const uint8_t* buffer, const uint8_t* end);
 
 
 
@@ -165,22 +156,19 @@ namespace ReaderWriter {
 			if(buffer >= end)
 				return NULL;
 			uint8_t v = *buffer;
-			size_t mod = 1;
+			size_t mod;
 			switch(v) {
-				case _null:
-					value = 0;
-					mod = 1;
 				case _uint8:
-					value = *(uint8_t*)(buffer+1);
+					value = *(uint8_t*)(buffer+1)+0x80;
 					mod = 2;
 				case _uint16:
-					value = endian::ReadBigEndiand<uint16_t>(buffer+1);
+					value = endian::ReadBigEndiand<uint16_t>(buffer+1)+0x80;
 					mod = 3;
 				case _uint32:
-					value = endian::ReadBigEndiand<uint32_t>(buffer+1);
+					value = endian::ReadBigEndiand<uint32_t>(buffer+1)+0x80;
 					mod = 5;
 				case _uint64:
-					value = endian::ReadBigEndiand<uint64_t>(buffer+1);
+					value = endian::ReadBigEndiand<uint64_t>(buffer+1)+0x80;
 					mod = 9;
 				case _sint8:
 					value = -*(int8_t*)(buffer+1);
@@ -197,6 +185,7 @@ namespace ReaderWriter {
 				default:
 					if(v >= _uint7) {
 						value = v - _uint7;
+						mod = 1;
 					} else {
 						value = 0;
 						return NULL;
@@ -268,24 +257,17 @@ namespace ReaderWriter {
 			return Read<uint64_t>((uint64_t&)value, buffer, end);
 		}
 
-
-
 	template<>
 		inline const uint8_t* Read<bool>(bool& value,
 				const uint8_t* buffer, const uint8_t* end) {
-			switch(*buffer) {
-				case _false:
-					value = false;
-					return buffer+1;
-				case _true:
-					value = true;
-					return buffer+1;
-					return NULL;
-			}
-			return NULL;
+			if(*buffer == _true)
+				value = true;
+			else if(*buffer == _false)
+				value = false;
+			else
+				return NULL;
+			return buffer+1;
 		}
-
-
 
 	template<>
 		inline const uint8_t* Read<long double>(long double& value,
@@ -323,21 +305,9 @@ namespace ReaderWriter {
 			value = v;
 			return buffer;
 		}
-
-	template<>
-		inline const uint8_t* Read<std::string>(std::string& value,
-				const uint8_t* buffer, const uint8_t* end) = delete;/* {
-			size_t size;
-			char* const str = NULL;
-			buffer = ReadString((char**const)&str, size, buffer, end);
-			if(buffer) {
-				value.clear();
-				value.insert(value.end(), str, str+size);
-				return buffer;
-			}
-			return NULL;
-		}*/
 		
+	
+	
 	template<>
 		inline const uint8_t* Read<std::string_view>(std::string_view& value,
 				const uint8_t* buffer, const uint8_t* end) {
@@ -355,17 +325,15 @@ namespace ReaderWriter {
 	inline const uint8_t* ReadString(char**const str, size_t& size,
 				const uint8_t* buffer, const uint8_t* end) {
 			Type type;
-			buffer = ReadTypeSize(type, &size, buffer, end);
-			if(type == _null) {
-				*str = NULL;
-				return NULL;
-			}
+			buffer = ReadTypeAndSize(type, size, buffer, end);
 			if(type == _string_long || type == _string_short) {
 				*str = (char*const)buffer;
 				buffer += size;
 				if(buffer > end)
 					return NULL;
 				return buffer;
+			} else {
+				*str = NULL;
 			}
 			return NULL;
 	}
@@ -376,62 +344,63 @@ namespace ReaderWriter {
 
 
 	inline Type GetType(const uint8_t* buffer) {
-		uint8_t v = ((uint8_t*)buffer)[0];
-		if(v < _array_float_short)
+		uint8_t v = *buffer;
+		if(v >= _one_type_types)
 			return (Type)v;
-		else if(v < _array_short)
-			return _array_float_short;
-		else if(v < _object_short)
+		else if(v >= _array_short)
 			return _array_short;
-		else if(v < _string_short)
-			return _object_short;
-		else if(v < _uint7)
+		else if(v >= _map_short)
+			return _map_short;
+		else if(v >= _string_short)
 			return _string_short;
 		else
 			return _uint7;
 	}
 
-	inline const uint8_t* ReadTypeSize(Type& type, uint64_t* size,
+	inline const uint8_t* ReadTypeAndSize(Type& type, uint64_t size,
 			const uint8_t* buffer, const uint8_t* end) {
-		uint8_t v = ((uint8_t*)buffer)[0];
-		if(v < _array_float_short) {
+		uint8_t v = *buffer;
+		if(v >= _one_type_types) {
 			type = (Type)v;
-			if(type>=_array_long && type<=_array_float) {
-				buffer = Read<uint64_t>(*size, buffer+1, end);
+			buffer++;
+			if(v <= _array_types_end) {
+				buffer = Read<uint64_t>(size, buffer, end);
 				switch(type) {
-					case _array_long:
-					case _object_long:
-						size += 0x10;
-						break;
 					case _string_long:
-						size += 0x40;
+						size += _string_short_size;
 						break;
-					case _array_float:
-						size += 0x0c;
+					case _map_long:
+						size += _map_short_size;
+						break;
+					case _array_long:
+						size += _array_short_size;
 						break;
 					default:
-						return buffer;
+						break;
 				}
+			} else {
+				size = 0;
+			}
+		} else {
+			buffer++;
+			if(v >= _array_short) {
+				type = _array_short;
+			} else if(v >= _map_short) {
+				type = _map_short;
+			} else if(v >= _string_short) {
+				type = _string_short;
+			} else {
+				type = _uint7;
+				if(buffer > end)
+					return NULL;
+				size = 0;
 				return buffer;
 			}
-			*size = 0;
-		} else {
-			if(v < _array_short)
-				type = _array_float_short;
-			else if(v < _object_short)
-				type = _array_short;
-			else if(v < _string_short)
-				type = _object_short;
-			else if(v < _uint7)
-				type = _string_short;
-			else {
-				type = _uint7;
-				*size = 0;
-				return buffer+1;
-			}
-			*size = v - (uint8_t)type;
+			size = v - type;
 		}
-		return buffer+1;
+		if(buffer > end)
+			return NULL;
+		return buffer;
 	}
 
 
@@ -448,9 +417,7 @@ namespace ReaderWriter {
 	template<>
 		inline void Write<int64_t>(int64_t value,
 				std::vector<uint8_t, allocator_any<uint8_t>>& buffer) {
-			if(value == 0) {
-				buffer.emplace_back(_null);
-			} else if(value < 0) {
+			if(value < 0) {
 				value = -value;
 				if(value < 0x100) {
 					buffer.emplace_back(_sint8);
@@ -472,26 +439,29 @@ namespace ReaderWriter {
 							buffer.data()+buffer.size()-8);
 				}
 			} else {
-				if(value < 0x80) {
+				if(value <= _uint7_max) {
 					buffer.emplace_back(value + _uint7);
-				} else if(value < 0x100) {
-					buffer.emplace_back(_uint8);
-					buffer.emplace_back(value);
-				} else if(value < 0x10000) {
-					buffer.emplace_back(_uint16);
-					buffer.resize(buffer.size()+2);
-					endian::WriteBigEndiand<uint16_t>(value,
-							buffer.data()+buffer.size()-2);
-				} else if(value < 0x10000000) {
-					buffer.emplace_back(_uint32);
-					buffer.resize(buffer.size()+4);
-					endian::WriteBigEndiand<uint64_t>(value,
-							buffer.data()+buffer.size()-4);
 				} else {
-					buffer.emplace_back(_uint64);
-					buffer.resize(buffer.size()+8);
-					endian::WriteBigEndiand<uint64_t>(value,
-							buffer.data()+buffer.size()-8);
+					value -= _uint7_max+1;
+					if(value < 0x100) {
+						buffer.emplace_back(_uint8);
+						buffer.emplace_back(value);
+					} else if(value < 0x10000) {
+						buffer.emplace_back(_uint16);
+						buffer.resize(buffer.size()+2);
+						endian::WriteBigEndiand<uint16_t>(value,
+								buffer.data()+buffer.size()-2);
+					} else if(value < 0x10000000) {
+						buffer.emplace_back(_uint32);
+						buffer.resize(buffer.size()+4);
+						endian::WriteBigEndiand<uint64_t>(value,
+								buffer.data()+buffer.size()-4);
+					} else {
+						buffer.emplace_back(_uint64);
+						buffer.resize(buffer.size()+8);
+						endian::WriteBigEndiand<uint64_t>(value,
+								buffer.data()+buffer.size()-8);
+					}
 				}
 			}
 		}
@@ -547,11 +517,40 @@ namespace ReaderWriter {
 	template<>
 		inline void Write<const std::string&>(const std::string& value,
 				std::vector<uint8_t, allocator_any<uint8_t>>& buffer) {
-			if(value.size() <= 0x40)
+			if(value.size() < _string_short_size)
 				buffer.emplace_back(_string_short + value.size());
 			else
-				Write<uint64_t>(value.size(), buffer);
+				Write<uint64_t>(value.size()-_string_short_size, buffer);
 			buffer.insert(buffer.end(), value.begin(), value.end());
+		}
+	
+	template<>
+		inline void Write<const std::string_view&>(const std::string_view& value,
+				std::vector<uint8_t, allocator_any<uint8_t>>& buffer) {
+			if(value.size() < _string_short_size)
+				buffer.emplace_back(_string_short + value.size());
+			else
+				Write<uint64_t>(value.size()-_string_short_size, buffer);
+			buffer.insert(buffer.end(), value.begin(), value.end());
+		}
+	
+	
+	inline void InitMap(uint64_t elements,
+			std::vector<uint8_t, allocator_any<uint8_t>>& buffer) {
+
+	}
+	
+	inline void InitArray(Type type, uint64_t elements,
+			std::vector<uint8_t, allocator_any<uint8_t>>& buffer) {
+
+	}
+	
+	template<>
+		inline void Write<const std::span<uint8_t>&>(
+				const std::span<uint8_t>& value,
+				std::vector<uint8_t, allocator_any<uint8_t>>& buffer) {
+			
+			
 		}
 }
 
